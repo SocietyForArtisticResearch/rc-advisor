@@ -11,37 +11,61 @@ main =
     Browser.sandbox { init = init, update = update, view = view }
 
 
-type Publication 
+type PublicationType
     = Internal 
     | Archive
     | External
+    | SelfPublished
 
-type Share 
+type ShareLevel
     = ShareInPortal
     | SharePublic
     | ShareWithRC
     | ShareSecretLink
 
-type Functionality 
-    = Publication Publication
-    | Reviewing
-    | Sharing Share
-    | Collaborate
-    | Group 
-    | SelfPublication
+type Connection 
+    = Reviewing
+    | ConnectTo
+    | SharedIn
+    | External 
 
-type Level 
-    = Main
-    | Sub
+type LevelHeader
+    = MainHeader
+    | SubHeader
+
+type alias Text = 
+    List Elm
+
+type alias Paragraph =
+    (Span,List Span)
 
 type Elm 
-    = Header Level String
-    | Paragraph Span (List Span)
+    = Header LevelHeader String
+    | Paragraph Paragraph
+    | List (List Paragraph)
+    | Br
+
+p : Span -> List Span -> Elm
+p first rest =
+    Paragraph (first,rest)
+
+list : List Paragraph -> Elm
+list listItems = 
+    List listItems 
 
 type Span 
     = P String
     | I String
     | B String
+
+-- question 1
+type ScopeAnswer 
+    = Journal 
+    | Exam 
+    | Assignment
+    | Project
+    | Informational
+
 
 
 render : List Elm -> Html Msg 
@@ -83,10 +107,34 @@ b : String -> Span
 b str = 
     B str 
 
+h : String -> Elm
+h str = 
+   LevelHeader Main str
+
+br : Elm
+br =
+    Br
+
+
 -- MODEL
 
-type alias Model =
-    Int
+type Review 
+    = Uncategorized
+    | Reviewing
+    | Revision
+
+type Issue 
+    = OpenIssue
+    | ClosedIssue
+    | ArchivedIssue
+
+
+type Model
+    = NotExist
+    | InProgress
+    | InReview Review
+    | Published PublicationType
+
 
 
 init : Model
