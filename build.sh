@@ -1,1 +1,1 @@
-elm make Main.elm --output=elm.js
+elm make Main.elm --output=build/elm.js
