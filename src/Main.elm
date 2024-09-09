@@ -2,8 +2,9 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (accept)
+import Html.Attributes as Attrs exposing (accept)
 import Html.Events exposing (onClick)
+import List exposing (all)
 
 
 
@@ -25,7 +26,7 @@ type ShareLevel
     = Private
     | ShareInPortal
     | SharePublic
-    | ShareWithRC
+    | ShareInRC
 
 
 type LevelHeader
@@ -43,6 +44,17 @@ type Elm
     | List (List Elm)
     | Br
     | Button Elm Msg
+    | Block (List Elm)
+    | Escape (Html Msg)
+    | Image { label : Elm, alt : String, url : String }
+
+
+image label alt url =
+    Image
+        { label = label
+        , alt = alt
+        , url = url
+        }
 
 
 par : List Span -> Elm
@@ -60,10 +72,21 @@ list listItems =
     List listItems
 
 
+hyper : String -> Maybe String -> String -> Span
+hyper url text alt =
+    case text of
+        Nothing ->
+            L { url = url, text = url, alt = alt }
+
+        Just t ->
+            L { url = url, text = t, alt = alt }
+
+
 type Span
     = P String
     | I String
     | B String
+    | L { url : String, text : String, alt : String }
 
 
 
@@ -90,21 +113,7 @@ render elm =
                     Html.h2 [] [ Html.text s ]
 
         Paragraph lst ->
-            Html.div []
-                (lst
-                    |> List.map
-                        (\sp ->
-                            case sp of
-                                P s ->
-                                    Html.span [] [ Html.text s ]
-
-                                I s ->
-                                    Html.em [] [ Html.text s ]
-
-                                B s ->
-                                    Html.strong [] [ Html.text s ]
-                        )
-                )
+            renderPar lst
 
         List lst ->
             Html.ul [] <|
@@ -116,10 +125,49 @@ render elm =
         Button message msg ->
             Html.button [ onClick msg ] [ render message ]
 
+        Block lst ->
+            Html.div [] <| List.map render lst
+
+        Escape html ->
+            html
+
+        Image props ->
+            renderImage props
+
 
 renders : List Elm -> Html Msg
 renders elms =
     Html.div [] (elms |> List.map render)
+
+
+renderPar : List Span -> Html Msg
+renderPar pr =
+    Html.p []
+        (pr
+            |> List.map
+                (\sp ->
+                    case sp of
+                        P s ->
+                            Html.span [] [ Html.text s ]
+
+                        I s ->
+                            Html.em [] [ Html.text s ]
+
+                        B s ->
+                            Html.strong [] [ Html.text s ]
+
+                        L s ->
+                            Html.a [ Attrs.href s.url, Attrs.alt s.alt, Attrs.target "_blank" ] [ Html.text s.text ]
+                )
+        )
+
+
+renderImage : { label : Elm, alt : String, url : String } -> Html Msg
+renderImage props =
+    Html.figure []
+        [ Html.img [ Attrs.src props.url, Attrs.alt props.alt ] []
+        , Html.figcaption [] [ render props.label ]
+        ]
 
 
 p : String -> Span
@@ -150,6 +198,11 @@ br =
 btn : Elm -> Msg -> Elm
 btn message msg =
     Button message msg
+
+
+block : List Elm -> Elm
+block lst =
+    Block lst
 
 
 
@@ -199,6 +252,7 @@ type ConnectAction
 type AuthorPublicationAction
     = SubmitForReview
     | Resubmit
+    | SelfPublish
 
 
 type Issue
@@ -263,6 +317,9 @@ update msg model =
                         AuthorMsg (PublicationAction SubmitForReview) ->
                             InReview { share = m.share, connected = m.connected, collab = m.collab, review = Uncatagorized }
 
+                        AuthorMsg (PublicationAction SelfPublish) ->
+                            Published { share = m.share, connected = m.connected, collab = m.collab, publication = SelfPublished }
+
                         AuthorMsg (ConnectAction ca) ->
                             case ca of
                                 ConnectToGroup ->
@@ -307,27 +364,84 @@ viewShare : ShareLevel -> Elm
 viewShare sl =
     let
         head =
-            p "Share level is now: "
+            p "The exposition is visible for: "
 
         tail =
             case sl of
                 Private ->
-                    p "private: only visible to the authors and collaborators"
+                    p "authors and collaborators"
 
                 ShareInPortal ->
-                    p "shared in portal: only visible to members of the portal"
+                    p "users that are members of the portal"
 
                 SharePublic ->
-                    p "public: visible to all"
+                    p "to all"
 
-                ShareWithRC ->
-                    p "shared with rc"
+                ShareInRC ->
+                    p "registered users in RC"
     in
     par [ head, tail ]
 
 
+renderRadio : List ( Elm, Msg ) -> Html Msg
+renderRadio lst =
+    Html.select []
+        (lst
+            |> List.map
+                (\( e, msg ) ->
+                    Html.option [ onClick msg ] [ render e ]
+                )
+        )
+
+
 
 -- VIEW
+
+
+shareLevelToString : ShareLevel -> String
+shareLevelToString s =
+    case s of
+        Private ->
+            "private"
+
+        ShareInPortal ->
+            "share in portal"
+
+        ShareInRC ->
+            "share in rc"
+
+        SharePublic ->
+            "public"
+
+
+dashed =
+    String.replace " " "-"
+
+
+optionsFromShare : ShareLevel -> Elm
+optionsFromShare share =
+    let
+        elmFromShare m =
+            Html.text (m |> shareLevelToString)
+    in
+    Escape
+        (Html.div []
+            (allShareLevels
+                |> List.concatMap
+                    (\s ->
+                        [ Html.label []
+                            [ Html.input [ onClick (AuthorMsg (ChangeShareLevel s)), Attrs.name "share_level", Attrs.type_ "radio", Attrs.value (shareLevelToString s) ] []
+                            , elmFromShare s
+                            ]
+                        , Html.br [] []
+                        ]
+                    )
+            )
+        )
+
+
+allShareLevels =
+    [ Private, ShareInPortal, ShareInRC, SharePublic ]
 
 
 view : Model -> Html Msg
@@ -336,33 +450,124 @@ view model =
         status =
             case model of
                 NotExist ->
-                    renders [ h "does not exist insert option to create exposition here ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
+                    renders [ txt "A user can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
 
                 InProgress m ->
+                    let
+                        shareBlock =
+                            block
+                                [ par [ p "The author can now choose to change the visibility by ", hyper "https://guide.researchcatalogue.net/#share" (Just "sharing") "rc documentation", p " it:" ]
+                                , optionsFromShare m.share
+                                ]
+
+                        connectBlock =
+                            case m.share of
+                                Private ->
+                                    block [ txt "Connection: ", txt "expositions can be connected to portals or groups, but they have to be shared first." ]
+
+                                ShareInPortal ->
+                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
+
+                                SharePublic ->
+                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
+
+                                ShareInRC ->
+                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
+                    in
                     renders <|
                         [ h "There is now an in progress exposition"
+                        , txt "it currently exists in the authors profile and has no relationship with the portal."
                         , viewShare m.share
                         , br
-                        , btn (txt "Share in portal") (AuthorMsg (ChangeShareLevel ShareInPortal))
+                        , shareBlock
+                        , br
+                        , txt "It is also possible to publish an exposition, which fixes the contents and registers a DOI."
+                        , btn (txt "self-publish") (AuthorMsg (PublicationAction SelfPublish))
                         , btn (txt "Submit to portal") (AuthorMsg (PublicationAction SubmitForReview))
+                        , br
+                        , connectBlock
                         ]
 
                 InReview m ->
+                    let
+                        reviewActions =
+                            case m.review of
+                                Uncatagorized ->
+                                    block
+                                        [ txt "the exposition appears under \"Uncatagorized\""
+                                        , btn (txt "add a reviewer") (AdminMsg AssignReviewer)
+                                        , btn (txt "put in revision") (AdminMsg PutInRevision)
+                                        ]
+
+                                Revision ->
+                                    block
+                                        [ txt "Either the admin "
+                                        , btn (txt "put in review") (AdminMsg PutInReview)
+                                        ]
+
+                                BeingReviewed ->
+                                    block
+                                        [ txt "the exposition is now in review and can be seen by the reviewer"
+                                        , btn (txt "add a reviewer") (AdminMsg AssignReviewer)
+                                        , btn (txt "put in revision") (AdminMsg PutInRevision)
+                                        ]
+                    in
                     renders <|
                         [ h "the exposition is now in review."
-                        , List [ txt "The portal admin has been notified.", txt "The exposition content is locked" ]
+                        , List
+                            [ par [ p "The portal admin has been notified and the exposition is listed in ", b "reviewing" ]
+                            , case m.review of
+                                Revision ->
+                                    txt "The exposition can be edited temporarily"
+
+                                _ ->
+                                    txt "The exposition is in review and cannot be edited"
+                            ]
+                        , reviewActions
                         , br
-                        , h "the admin can now"
-                        , List [ btn (txt "accept the publication as an internal publication") (AdminMsg (AcceptPublication Internal)) ]
-                        , List [ btn (txt "accept the publication as a fully public") (AdminMsg (AcceptPublication External)) ]
-                        , List [ btn (txt "accept the publication, but only archive it") (AdminMsg (AcceptPublication Archive)) ]
+                        , txt "the admin can now accept this request"
+                        , List
+                            [ btn (txt "as an internal publication") (AdminMsg (AcceptPublication Internal))
+                            , btn (txt "as a worldwide publication") (AdminMsg (AcceptPublication External))
+                            , btn (txt "archive it") (AdminMsg (AcceptPublication Archive))
+                            , txt "or"
+                            , btn (txt "reject publication") (AdminMsg RejectPublication)
+                            ]
                         ]
 
                 Published m ->
-                    renders <|
-                        [ h "the exposition is now published"
-                        , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
-                        , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
-                        ]
+                    case m.publication of
+                        SelfPublished ->
+                            renders
+                                [ h "The exposition is self-published"
+                                , txt "only SAR can undo this in case of emergencies"
+                                ]
+
+                        Archive ->
+                            renders <|
+                                [ h "the exposition has been archived"
+                                , List
+                                    [ txt "Only the admin and the author can see it."
+                                    , txt "The author has been informed."
+                                    , txt "The exposition will no longer be editable, but it may be duplicated through versioning"
+                                    ]
+                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                                ]
+
+                        Internal ->
+                            renders <|
+                                [ h "The exposition has been published internally in the portal."
+                                , txt "It can be seen by members of the portal"
+                                , txt "It will appear on the portal feed"
+                                , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
+                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                                ]
+
+                        External ->
+                            renders <|
+                                [ h "the exposition is now published it will appear on the front page"
+                                , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
+                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                                ]
     in
     Html.div [] [ render <| btn (txt "reset all") Reset, status ]
