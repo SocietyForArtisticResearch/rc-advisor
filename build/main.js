@@ -604,7 +604,7 @@ ${variant}`;
   var VERSION = "1.1.3";
   var TARGET_NAME = "My target name";
   var INITIAL_ELM_COMPILED_TIMESTAMP = Number(
-    "1725883671080"
+    "1725886280317"
   );
   var ORIGINAL_COMPILATION_MODE = "standard";
   var ORIGINAL_BROWSER_UI_POSITION = "BottomLeft";
@@ -8914,7 +8914,7 @@ var $author$project$Main$view = function (model) {
 					_List_fromArray(
 						[
 							$author$project$Main$h('There is now an in progress exposition'),
-							$author$project$Main$txt('it currently exists in the authors profile and has no relationship with the portal.'),
+							$author$project$Main$txt('it currently exists in the authors profile but is not part of the portal yet.'),
 							$author$project$Main$viewShare(m.share),
 							$author$project$Main$br,
 							shareBlock,
@@ -8956,7 +8956,7 @@ var $author$project$Main$view = function (model) {
 							return $author$project$Main$block(
 								_List_fromArray(
 									[
-										$author$project$Main$txt('Either the admin '),
+										$author$project$Main$txt('either the admin or the author resubmits the exposition'),
 										A2(
 										$author$project$Main$btn,
 										$author$project$Main$txt('put in review'),
@@ -8969,12 +8969,33 @@ var $author$project$Main$view = function (model) {
 										$author$project$Main$txt('the exposition is now in review and can be seen by the reviewer'),
 										A2(
 										$author$project$Main$btn,
-										$author$project$Main$txt('add a reviewer'),
-										$author$project$Main$AdminMsg($author$project$Main$AssignReviewer)),
-										A2(
-										$author$project$Main$btn,
 										$author$project$Main$txt('put in revision'),
-										$author$project$Main$AdminMsg($author$project$Main$PutInRevision))
+										$author$project$Main$AdminMsg($author$project$Main$PutInRevision)),
+										$author$project$Main$txt('the admin can now accept this request'),
+										$author$project$Main$List(
+										_List_fromArray(
+											[
+												A2(
+												$author$project$Main$btn,
+												$author$project$Main$txt('as an internal publication'),
+												$author$project$Main$AdminMsg(
+													$author$project$Main$AcceptPublication($author$project$Main$Internal))),
+												A2(
+												$author$project$Main$btn,
+												$author$project$Main$txt('as a worldwide publication'),
+												$author$project$Main$AdminMsg(
+													$author$project$Main$AcceptPublication($author$project$Main$External))),
+												A2(
+												$author$project$Main$btn,
+												$author$project$Main$txt('archive it'),
+												$author$project$Main$AdminMsg(
+													$author$project$Main$AcceptPublication($author$project$Main$Archive))),
+												$author$project$Main$txt('or'),
+												A2(
+												$author$project$Main$btn,
+												$author$project$Main$txt('reject publication'),
+												$author$project$Main$AdminMsg($author$project$Main$RejectPublication))
+											]))
 									]));
 					}
 				}();
@@ -9001,32 +9022,7 @@ var $author$project$Main$view = function (model) {
 								}()
 								])),
 							reviewActions,
-							$author$project$Main$br,
-							$author$project$Main$txt('the admin can now accept this request'),
-							$author$project$Main$List(
-							_List_fromArray(
-								[
-									A2(
-									$author$project$Main$btn,
-									$author$project$Main$txt('as an internal publication'),
-									$author$project$Main$AdminMsg(
-										$author$project$Main$AcceptPublication($author$project$Main$Internal))),
-									A2(
-									$author$project$Main$btn,
-									$author$project$Main$txt('as a worldwide publication'),
-									$author$project$Main$AdminMsg(
-										$author$project$Main$AcceptPublication($author$project$Main$External))),
-									A2(
-									$author$project$Main$btn,
-									$author$project$Main$txt('archive it'),
-									$author$project$Main$AdminMsg(
-										$author$project$Main$AcceptPublication($author$project$Main$Archive))),
-									$author$project$Main$txt('or'),
-									A2(
-									$author$project$Main$btn,
-									$author$project$Main$txt('reject publication'),
-									$author$project$Main$AdminMsg($author$project$Main$RejectPublication))
-								]))
+							$author$project$Main$br
 						]));
 			default:
 				var m = model.a;

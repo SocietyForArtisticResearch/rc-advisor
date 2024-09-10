@@ -476,7 +476,7 @@ view model =
                     in
                     renders <|
                         [ h "There is now an in progress exposition"
-                        , txt "it currently exists in the authors profile and has no relationship with the portal."
+                        , txt "it currently exists in the authors profile but is not part of the portal yet."
                         , viewShare m.share
                         , br
                         , shareBlock
@@ -501,15 +501,22 @@ view model =
 
                                 Revision ->
                                     block
-                                        [ txt "Either the admin "
+                                        [ txt "either the admin or the author resubmits the exposition"
                                         , btn (txt "put in review") (AdminMsg PutInReview)
                                         ]
 
                                 BeingReviewed ->
                                     block
                                         [ txt "the exposition is now in review and can be seen by the reviewer"
-                                        , btn (txt "add a reviewer") (AdminMsg AssignReviewer)
                                         , btn (txt "put in revision") (AdminMsg PutInRevision)
+                                        , txt "the admin can now accept this request"
+                                        , List
+                                            [ btn (txt "as an internal publication") (AdminMsg (AcceptPublication Internal))
+                                            , btn (txt "as a worldwide publication") (AdminMsg (AcceptPublication External))
+                                            , btn (txt "archive it") (AdminMsg (AcceptPublication Archive))
+                                            , txt "or"
+                                            , btn (txt "reject publication") (AdminMsg RejectPublication)
+                                            ]
                                         ]
                     in
                     renders <|
@@ -525,14 +532,6 @@ view model =
                             ]
                         , reviewActions
                         , br
-                        , txt "the admin can now accept this request"
-                        , List
-                            [ btn (txt "as an internal publication") (AdminMsg (AcceptPublication Internal))
-                            , btn (txt "as a worldwide publication") (AdminMsg (AcceptPublication External))
-                            , btn (txt "archive it") (AdminMsg (AcceptPublication Archive))
-                            , txt "or"
-                            , btn (txt "reject publication") (AdminMsg RejectPublication)
-                            ]
                         ]
 
                 Published m ->
