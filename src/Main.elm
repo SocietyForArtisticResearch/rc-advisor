@@ -47,7 +47,7 @@ type Elm
     | Block (List Elm)
     | Escape (Html Msg)
     | Image { label : Elm, alt : String, url : String }
-
+    | Text (List Span)
 
 image label alt url =
     Image
@@ -64,7 +64,7 @@ par spans =
 
 txt : String -> Elm
 txt t =
-    Paragraph [ p t ]
+    Text [ p t ]
 
 
 list : List Elm -> Elm
@@ -134,6 +134,9 @@ render elm =
         Image props ->
             renderImage props
 
+        Text spans ->
+            Html.label [] (List.map renderSpan spans)
+
 
 renders : List Elm -> Html Msg
 renders elms =
@@ -144,23 +147,25 @@ renderPar : List Span -> Html Msg
 renderPar pr =
     Html.p []
         (pr
-            |> List.map
-                (\sp ->
-                    case sp of
-                        P s ->
-                            Html.span [] [ Html.text s ]
-
-                        I s ->
-                            Html.em [] [ Html.text s ]
-
-                        B s ->
-                            Html.strong [] [ Html.text s ]
-
-                        L s ->
-                            Html.a [ Attrs.href s.url, Attrs.alt s.alt, Attrs.target "_blank" ] [ Html.text s.text ]
+            |> List.map renderSpan
+                
                 )
-        )
+        
 
+renderSpan : Span -> Html Msg 
+renderSpan sp = 
+    case sp of
+        P s ->
+            Html.span [] [ Html.text s ]
+
+        I s ->
+            Html.em [] [ Html.text s ]
+
+        B s ->
+            Html.strong [] [ Html.text s ]
+
+        L s ->
+            Html.a [ Attrs.href s.url, Attrs.alt s.alt, Attrs.target "_blank" ] [ Html.text s.text ]
 
 renderImage : { label : Elm, alt : String, url : String } -> Html Msg
 renderImage props =
@@ -460,6 +465,27 @@ view model =
                                 , optionsFromShare m.share
                                 ]
 
+                        request = 
+                            case m.connected of
+                                ConnectedToPortal Unconfirmed ->
+                                    List [btn (txt "Portal admin may accept the connection") (AdminMsg (AcceptConnection))
+
+                                    ,btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)]
+
+                                ConnectedToGroup Unconfirmed -> 
+                                    List [btn (txt "Portal admin may accept the connection") (AdminMsg (AcceptConnection))
+
+                                    ,btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)]
+
+                                ConnectedToPortal Confirmed ->
+                                    btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
+
+                                ConnectedToGroup Confirmed ->
+                                    btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
+
+                                NotConnected -> 
+                                    txt ""
+
                         connectBlock =
                             case m.share of
                                 Private ->
@@ -486,6 +512,8 @@ view model =
                         , btn (txt "Submit to portal") (AuthorMsg (PublicationAction SubmitForReview))
                         , br
                         , connectBlock
+                        , txt "admin may control request"
+                        , request
                         ]
 
                 InReview m ->

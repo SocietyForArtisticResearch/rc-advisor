@@ -604,7 +604,7 @@ ${variant}`;
   var VERSION = "1.1.3";
   var TARGET_NAME = "My target name";
   var INITIAL_ELM_COMPILED_TIMESTAMP = Number(
-    "1725886280317"
+    "1725960294901"
   );
   var ORIGINAL_COMPILATION_MODE = "standard";
   var ORIGINAL_BROWSER_UI_POSITION = "BottomLeft";
@@ -8433,6 +8433,7 @@ var $author$project$Main$update = F2(
 			}
 		}
 	});
+var $author$project$Main$AcceptConnection = {$: 'AcceptConnection'};
 var $author$project$Main$AcceptPublication = function (a) {
 	return {$: 'AcceptPublication', a: a};
 };
@@ -8459,6 +8460,7 @@ var $author$project$Main$PublicationAction = function (a) {
 };
 var $author$project$Main$PutInReview = {$: 'PutInReview'};
 var $author$project$Main$PutInRevision = {$: 'PutInRevision'};
+var $author$project$Main$RejectConnection = {$: 'RejectConnection'};
 var $author$project$Main$RejectPublication = {$: 'RejectPublication'};
 var $author$project$Main$Reset = {$: 'Reset'};
 var $author$project$Main$SelfPublish = {$: 'SelfPublish'};
@@ -8640,6 +8642,7 @@ var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $elm$html$Html$h2 = _VirtualDom_node('h2');
 var $elm$html$Html$img = _VirtualDom_node('img');
 var $elm$html$Html$li = _VirtualDom_node('li');
+var $elm$html$Html$p = _VirtualDom_node('p');
 var $elm$html$Html$a = _VirtualDom_node('a');
 var $elm$html$Html$em = _VirtualDom_node('em');
 var $elm$html$Html$Attributes$href = function (url) {
@@ -8648,62 +8651,59 @@ var $elm$html$Html$Attributes$href = function (url) {
 		'href',
 		_VirtualDom_noJavaScriptUri(url));
 };
-var $elm$html$Html$p = _VirtualDom_node('p');
 var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $elm$html$Html$Attributes$target = $elm$html$Html$Attributes$stringProperty('target');
+var $author$project$Main$renderSpan = function (sp) {
+	switch (sp.$) {
+		case 'P':
+			var s = sp.a;
+			return A2(
+				$elm$html$Html$span,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text(s)
+					]));
+		case 'I':
+			var s = sp.a;
+			return A2(
+				$elm$html$Html$em,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text(s)
+					]));
+		case 'B':
+			var s = sp.a;
+			return A2(
+				$elm$html$Html$strong,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text(s)
+					]));
+		default:
+			var s = sp.a;
+			return A2(
+				$elm$html$Html$a,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$href(s.url),
+						$elm$html$Html$Attributes$alt(s.alt),
+						$elm$html$Html$Attributes$target('_blank')
+					]),
+				_List_fromArray(
+					[
+						$elm$html$Html$text(s.text)
+					]));
+	}
+};
 var $author$project$Main$renderPar = function (pr) {
 	return A2(
 		$elm$html$Html$p,
 		_List_Nil,
-		A2(
-			$elm$core$List$map,
-			function (sp) {
-				switch (sp.$) {
-					case 'P':
-						var s = sp.a;
-						return A2(
-							$elm$html$Html$span,
-							_List_Nil,
-							_List_fromArray(
-								[
-									$elm$html$Html$text(s)
-								]));
-					case 'I':
-						var s = sp.a;
-						return A2(
-							$elm$html$Html$em,
-							_List_Nil,
-							_List_fromArray(
-								[
-									$elm$html$Html$text(s)
-								]));
-					case 'B':
-						var s = sp.a;
-						return A2(
-							$elm$html$Html$strong,
-							_List_Nil,
-							_List_fromArray(
-								[
-									$elm$html$Html$text(s)
-								]));
-					default:
-						var s = sp.a;
-						return A2(
-							$elm$html$Html$a,
-							_List_fromArray(
-								[
-									$elm$html$Html$Attributes$href(s.url),
-									$elm$html$Html$Attributes$alt(s.alt),
-									$elm$html$Html$Attributes$target('_blank')
-								]),
-							_List_fromArray(
-								[
-									$elm$html$Html$text(s.text)
-								]));
-				}
-			},
-			pr));
+		A2($elm$core$List$map, $author$project$Main$renderSpan, pr));
 };
 var $elm$html$Html$Attributes$src = function (url) {
 	return A2(
@@ -8778,9 +8778,15 @@ var $author$project$Main$render = function (elm) {
 		case 'Escape':
 			var html = elm.a;
 			return html;
-		default:
+		case 'Image':
 			var props = elm.a;
 			return $author$project$Main$renderImage(props);
+		default:
+			var spans = elm.a;
+			return A2(
+				$elm$html$Html$label,
+				_List_Nil,
+				A2($elm$core$List$map, $author$project$Main$renderSpan, spans));
 	}
 };
 var $author$project$Main$renderImage = function (props) {
@@ -8812,8 +8818,11 @@ var $author$project$Main$renders = function (elms) {
 		_List_Nil,
 		A2($elm$core$List$map, $author$project$Main$render, elms));
 };
+var $author$project$Main$Text = function (a) {
+	return {$: 'Text', a: a};
+};
 var $author$project$Main$txt = function (t) {
-	return $author$project$Main$Paragraph(
+	return $author$project$Main$Text(
 		_List_fromArray(
 			[
 				$author$project$Main$p(t)
@@ -8868,6 +8877,57 @@ var $author$project$Main$view = function (model) {
 								])),
 							$author$project$Main$optionsFromShare(m.share)
 						]));
+				var request = function () {
+					var _v2 = m.connected;
+					switch (_v2.$) {
+						case 'ConnectedToPortal':
+							if (_v2.a.$ === 'Unconfirmed') {
+								var _v3 = _v2.a;
+								return $author$project$Main$List(
+									_List_fromArray(
+										[
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('Portal admin may accept the connection'),
+											$author$project$Main$AdminMsg($author$project$Main$AcceptConnection)),
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('Portal admin may reject the connection'),
+											$author$project$Main$AdminMsg($author$project$Main$RejectConnection))
+										]));
+							} else {
+								var _v5 = _v2.a;
+								return A2(
+									$author$project$Main$btn,
+									$author$project$Main$txt('Portal admin may undo the connection'),
+									$author$project$Main$AdminMsg($author$project$Main$RejectConnection));
+							}
+						case 'ConnectedToGroup':
+							if (_v2.a.$ === 'Unconfirmed') {
+								var _v4 = _v2.a;
+								return $author$project$Main$List(
+									_List_fromArray(
+										[
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('Portal admin may accept the connection'),
+											$author$project$Main$AdminMsg($author$project$Main$AcceptConnection)),
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('Portal admin may reject the connection'),
+											$author$project$Main$AdminMsg($author$project$Main$RejectConnection))
+										]));
+							} else {
+								var _v6 = _v2.a;
+								return A2(
+									$author$project$Main$btn,
+									$author$project$Main$txt('Portal admin may undo the connection'),
+									$author$project$Main$AdminMsg($author$project$Main$RejectConnection));
+							}
+						default:
+							return $author$project$Main$txt('');
+					}
+				}();
 				var connectBlock = function () {
 					var _v1 = m.share;
 					switch (_v1.$) {
@@ -8931,13 +8991,15 @@ var $author$project$Main$view = function (model) {
 							$author$project$Main$AuthorMsg(
 								$author$project$Main$PublicationAction($author$project$Main$SubmitForReview))),
 							$author$project$Main$br,
-							connectBlock
+							connectBlock,
+							$author$project$Main$txt('admin may control request'),
+							request
 						]));
 			case 'InReview':
 				var m = model.a;
 				var reviewActions = function () {
-					var _v3 = m.review;
-					switch (_v3.$) {
+					var _v8 = m.review;
+					switch (_v8.$) {
 						case 'Uncatagorized':
 							return $author$project$Main$block(
 								_List_fromArray(
@@ -9013,8 +9075,8 @@ var $author$project$Main$view = function (model) {
 											$author$project$Main$b('reviewing')
 										])),
 									function () {
-									var _v2 = m.review;
-									if (_v2.$ === 'Revision') {
+									var _v7 = m.review;
+									if (_v7.$ === 'Revision') {
 										return $author$project$Main$txt('The exposition can be edited temporarily');
 									} else {
 										return $author$project$Main$txt('The exposition is in review and cannot be edited');
@@ -9026,8 +9088,8 @@ var $author$project$Main$view = function (model) {
 						]));
 			default:
 				var m = model.a;
-				var _v4 = m.publication;
-				switch (_v4.$) {
+				var _v9 = m.publication;
+				switch (_v9.$) {
 					case 'SelfPublished':
 						return $author$project$Main$renders(
 							_List_fromArray(

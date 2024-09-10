@@ -91,7 +91,6 @@ th {
 
 /* Forms */
 input, textarea, select, button {
-    padding: 10px;
     margin-bottom: 20px;
     margin-right:10px;
     /* border: 1px solid #ccc; */
@@ -113,6 +112,7 @@ button {
     cursor: pointer;
     display: inline-block;
     text-align: center;
+    vertical-align: center;
     box-shadow: none;
     margin: 1em;
 }
