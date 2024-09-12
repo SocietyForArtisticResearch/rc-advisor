@@ -5950,6 +5950,7 @@ var $author$project$Main$view = function (model) {
 				return $author$project$Main$renders(
 					_List_fromArray(
 						[
+							$author$project$Main$h('RC advisor beta version 0.1'),
 							$author$project$Main$txt('A user within your portal can create a new exposition by clicking: '),
 							A2(
 							$author$project$Main$btn,

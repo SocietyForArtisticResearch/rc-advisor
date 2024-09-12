@@ -501,7 +501,7 @@ view model =
         status =
             case model.current of
                 NotExist ->
-                    renders [ txt "A user within your portal can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
+                    renders [ h "RC advisor beta version 0.1", txt "A user within your portal can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
 
                 InProgress m ->
                     let
