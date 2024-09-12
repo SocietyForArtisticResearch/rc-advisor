@@ -1,2877 +1,5 @@
-// elm-watch hot {"version":"1.1.3","targetName":"My target name","webSocketPort":54980}
-"use strict";
-(() => {
-  // node_modules/tiny-decoders/index.mjs
-  function boolean(value) {
-    if (typeof value !== "boolean") {
-      throw new DecoderError({ tag: "boolean", got: value });
-    }
-    return value;
-  }
-  function number(value) {
-    if (typeof value !== "number") {
-      throw new DecoderError({ tag: "number", got: value });
-    }
-    return value;
-  }
-  function string(value) {
-    if (typeof value !== "string") {
-      throw new DecoderError({ tag: "string", got: value });
-    }
-    return value;
-  }
-  function stringUnion(mapping) {
-    return function stringUnionDecoder(value) {
-      const str = string(value);
-      if (!Object.prototype.hasOwnProperty.call(mapping, str)) {
-        throw new DecoderError({
-          tag: "unknown stringUnion variant",
-          knownVariants: Object.keys(mapping),
-          got: str
-        });
-      }
-      return str;
-    };
-  }
-  function unknownArray(value) {
-    if (!Array.isArray(value)) {
-      throw new DecoderError({ tag: "array", got: value });
-    }
-    return value;
-  }
-  function unknownRecord(value) {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-      throw new DecoderError({ tag: "object", got: value });
-    }
-    return value;
-  }
-  function array(decoder) {
-    return function arrayDecoder(value) {
-      const arr = unknownArray(value);
-      const result = [];
-      for (let index = 0; index < arr.length; index++) {
-        try {
-          result.push(decoder(arr[index]));
-        } catch (error) {
-          throw DecoderError.at(error, index);
-        }
-      }
-      return result;
-    };
-  }
-  function record(decoder) {
-    return function recordDecoder(value) {
-      const object = unknownRecord(value);
-      const keys = Object.keys(object);
-      const result = {};
-      for (const key of keys) {
-        if (key === "__proto__") {
-          continue;
-        }
-        try {
-          result[key] = decoder(object[key]);
-        } catch (error) {
-          throw DecoderError.at(error, key);
-        }
-      }
-      return result;
-    };
-  }
-  function fields(callback, { exact = "allow extra", allow = "object" } = {}) {
-    return function fieldsDecoder(value) {
-      const object = allow === "array" ? unknownArray(value) : unknownRecord(value);
-      const knownFields = /* @__PURE__ */ Object.create(null);
-      function field(key, decoder) {
-        try {
-          const result2 = decoder(object[key]);
-          knownFields[key] = null;
-          return result2;
-        } catch (error) {
-          throw DecoderError.at(error, key);
-        }
-      }
-      const result = callback(field, object);
-      if (exact !== "allow extra") {
-        const unknownFields = Object.keys(object).filter((key) => !Object.prototype.hasOwnProperty.call(knownFields, key));
-        if (unknownFields.length > 0) {
-          throw new DecoderError({
-            tag: "exact fields",
-            knownFields: Object.keys(knownFields),
-            got: unknownFields
-          });
-        }
-      }
-      return result;
-    };
-  }
-  function fieldsAuto(mapping, { exact = "allow extra" } = {}) {
-    return function fieldsAutoDecoder(value) {
-      const object = unknownRecord(value);
-      const keys = Object.keys(mapping);
-      const result = {};
-      for (const key of keys) {
-        if (key === "__proto__") {
-          continue;
-        }
-        const decoder = mapping[key];
-        try {
-          result[key] = decoder(object[key]);
-        } catch (error) {
-          throw DecoderError.at(error, key);
-        }
-      }
-      if (exact !== "allow extra") {
-        const unknownFields = Object.keys(object).filter((key) => !Object.prototype.hasOwnProperty.call(mapping, key));
-        if (unknownFields.length > 0) {
-          throw new DecoderError({
-            tag: "exact fields",
-            knownFields: keys,
-            got: unknownFields
-          });
-        }
-      }
-      return result;
-    };
-  }
-  function fieldsUnion(key, mapping) {
-    return fields(function fieldsUnionFields(field, object) {
-      const tag = field(key, string);
-      if (Object.prototype.hasOwnProperty.call(mapping, tag)) {
-        const decoder = mapping[tag];
-        return decoder(object);
-      }
-      throw new DecoderError({
-        tag: "unknown fieldsUnion tag",
-        knownTags: Object.keys(mapping),
-        got: tag,
-        key
-      });
-    });
-  }
-  function multi(mapping) {
-    return function multiDecoder(value) {
-      if (value === void 0) {
-        if (mapping.undefined !== void 0) {
-          return mapping.undefined(value);
-        }
-      } else if (value === null) {
-        if (mapping.null !== void 0) {
-          return mapping.null(value);
-        }
-      } else if (typeof value === "boolean") {
-        if (mapping.boolean !== void 0) {
-          return mapping.boolean(value);
-        }
-      } else if (typeof value === "number") {
-        if (mapping.number !== void 0) {
-          return mapping.number(value);
-        }
-      } else if (typeof value === "string") {
-        if (mapping.string !== void 0) {
-          return mapping.string(value);
-        }
-      } else if (Array.isArray(value)) {
-        if (mapping.array !== void 0) {
-          return mapping.array(value);
-        }
-      } else {
-        if (mapping.object !== void 0) {
-          return mapping.object(value);
-        }
-      }
-      throw new DecoderError({
-        tag: "unknown multi type",
-        knownTypes: Object.keys(mapping),
-        got: value
-      });
-    };
-  }
-  function optional(decoder, defaultValue) {
-    return function optionalDecoder(value) {
-      if (value === void 0) {
-        return defaultValue;
-      }
-      try {
-        return decoder(value);
-      } catch (error) {
-        const newError = DecoderError.at(error);
-        if (newError.path.length === 0) {
-          newError.optional = true;
-        }
-        throw newError;
-      }
-    };
-  }
-  function chain(decoder, next) {
-    return function chainDecoder(value) {
-      return next(decoder(value));
-    };
-  }
-  function formatDecoderErrorVariant(variant, options) {
-    const formatGot = (value) => {
-      const formatted = repr(value, options);
-      return (options === null || options === void 0 ? void 0 : options.sensitive) === true ? `${formatted}
-(Actual values are hidden in sensitive mode.)` : formatted;
-    };
-    const stringList = (strings) => strings.length === 0 ? "(none)" : strings.map((s) => JSON.stringify(s)).join(", ");
-    const got = (message, value) => value === DecoderError.MISSING_VALUE ? message : `${message}
-Got: ${formatGot(value)}`;
-    switch (variant.tag) {
-      case "boolean":
-      case "number":
-      case "string":
-        return got(`Expected a ${variant.tag}`, variant.got);
-      case "array":
-      case "object":
-        return got(`Expected an ${variant.tag}`, variant.got);
-      case "unknown multi type":
-        return `Expected one of these types: ${variant.knownTypes.length === 0 ? "never" : variant.knownTypes.join(", ")}
-Got: ${formatGot(variant.got)}`;
-      case "unknown fieldsUnion tag":
-        return `Expected one of these tags: ${stringList(variant.knownTags)}
-Got: ${formatGot(variant.got)}`;
-      case "unknown stringUnion variant":
-        return `Expected one of these variants: ${stringList(variant.knownVariants)}
-Got: ${formatGot(variant.got)}`;
-      case "exact fields":
-        return `Expected only these fields: ${stringList(variant.knownFields)}
-Found extra fields: ${formatGot(variant.got).replace(/^\[|\]$/g, "")}`;
-      case "tuple size":
-        return `Expected ${variant.expected} items
-Got: ${variant.got}`;
-      case "custom":
-        return got(variant.message, variant.got);
-    }
-  }
-  var DecoderError = class extends TypeError {
-    constructor({ key, ...params }) {
-      const variant = "tag" in params ? params : { tag: "custom", message: params.message, got: params.value };
-      super(`${formatDecoderErrorVariant(
-        variant,
-        { sensitive: true }
-      )}
-
-For better error messages, see https://github.com/lydell/tiny-decoders#error-messages`);
-      this.path = key === void 0 ? [] : [key];
-      this.variant = variant;
-      this.nullable = false;
-      this.optional = false;
-    }
-    static at(error, key) {
-      if (error instanceof DecoderError) {
-        if (key !== void 0) {
-          error.path.unshift(key);
-        }
-        return error;
-      }
-      return new DecoderError({
-        tag: "custom",
-        message: error instanceof Error ? error.message : String(error),
-        got: DecoderError.MISSING_VALUE,
-        key
-      });
-    }
-    format(options) {
-      const path = this.path.map((part) => `[${JSON.stringify(part)}]`).join("");
-      const nullableString = this.nullable ? " (nullable)" : "";
-      const optionalString = this.optional ? " (optional)" : "";
-      const variant = formatDecoderErrorVariant(this.variant, options);
-      return `At root${path}${nullableString}${optionalString}:
-${variant}`;
-    }
-  };
-  DecoderError.MISSING_VALUE = Symbol("DecoderError.MISSING_VALUE");
-  function repr(value, { recurse = true, maxArrayChildren = 5, maxObjectChildren = 3, maxLength = 100, recurseMaxLength = 20, sensitive = false } = {}) {
-    const type = typeof value;
-    const toStringType = Object.prototype.toString.call(value).replace(/^\[object\s+(.+)\]$/, "$1");
-    try {
-      if (value == null || type === "number" || type === "boolean" || type === "symbol" || toStringType === "RegExp") {
-        return sensitive ? toStringType.toLowerCase() : truncate(String(value), maxLength);
-      }
-      if (type === "string") {
-        return sensitive ? type : truncate(JSON.stringify(value), maxLength);
-      }
-      if (typeof value === "function") {
-        return `function ${truncate(JSON.stringify(value.name), maxLength)}`;
-      }
-      if (Array.isArray(value)) {
-        const arr = value;
-        if (!recurse && arr.length > 0) {
-          return `${toStringType}(${arr.length})`;
-        }
-        const lastIndex = arr.length - 1;
-        const items = [];
-        const end = Math.min(maxArrayChildren - 1, lastIndex);
-        for (let index = 0; index <= end; index++) {
-          const item = index in arr ? repr(arr[index], {
-            recurse: false,
-            maxLength: recurseMaxLength,
-            sensitive
-          }) : "<empty>";
-          items.push(item);
-        }
-        if (end < lastIndex) {
-          items.push(`(${lastIndex - end} more)`);
-        }
-        return `[${items.join(", ")}]`;
-      }
-      if (toStringType === "Object") {
-        const object = value;
-        const keys = Object.keys(object);
-        const { name } = object.constructor;
-        if (!recurse && keys.length > 0) {
-          return `${name}(${keys.length})`;
-        }
-        const numHidden = Math.max(0, keys.length - maxObjectChildren);
-        const items = keys.slice(0, maxObjectChildren).map((key2) => `${truncate(JSON.stringify(key2), recurseMaxLength)}: ${repr(object[key2], {
-          recurse: false,
-          maxLength: recurseMaxLength,
-          sensitive
-        })}`).concat(numHidden > 0 ? `(${numHidden} more)` : []);
-        const prefix = name === "Object" ? "" : `${name} `;
-        return `${prefix}{${items.join(", ")}}`;
-      }
-      return toStringType;
-    } catch (_error) {
-      return toStringType;
-    }
-  }
-  function truncate(str, maxLength) {
-    const half = Math.floor(maxLength / 2);
-    return str.length <= maxLength ? str : `${str.slice(0, half)}\u2026${str.slice(-half)}`;
-  }
-
-  // src/Helpers.ts
-  function join(array2, separator) {
-    return array2.join(separator);
-  }
-  function pad(number2) {
-    return number2.toString().padStart(2, "0");
-  }
-  function formatDate(date) {
-    return join(
-      [pad(date.getFullYear()), pad(date.getMonth() + 1), pad(date.getDate())],
-      "-"
-    );
-  }
-  function formatTime(date) {
-    return join(
-      [pad(date.getHours()), pad(date.getMinutes()), pad(date.getSeconds())],
-      ":"
-    );
-  }
-
-  // src/TeaProgram.ts
-  async function runTeaProgram(options) {
-    return new Promise((resolve, reject) => {
-      const [initialModel, initialCmds] = options.init;
-      let model = initialModel;
-      const msgQueue = [];
-      let killed = false;
-      const dispatch = (dispatchedMsg) => {
-        if (killed) {
-          return;
-        }
-        const alreadyRunning = msgQueue.length > 0;
-        msgQueue.push(dispatchedMsg);
-        if (alreadyRunning) {
-          return;
-        }
-        for (const msg of msgQueue) {
-          const [newModel, cmds] = options.update(msg, model);
-          model = newModel;
-          runCmds(cmds);
-        }
-        msgQueue.length = 0;
-      };
-      const runCmds = (cmds) => {
-        for (const cmd of cmds) {
-          options.runCmd(
-            cmd,
-            mutable,
-            dispatch,
-            (result) => {
-              cmds.length = 0;
-              killed = true;
-              resolve(result);
-            },
-            (error) => {
-              cmds.length = 0;
-              killed = true;
-              reject(error);
-            }
-          );
-          if (killed) {
-            break;
-          }
-        }
-      };
-      const mutable = options.initMutable(
-        dispatch,
-        (result) => {
-          killed = true;
-          resolve(result);
-        },
-        (error) => {
-          killed = true;
-          reject(error);
-        }
-      );
-      runCmds(initialCmds);
-    });
-  }
-
-  // src/Types.ts
-  var AbsolutePath = fieldsAuto({
-    tag: () => "AbsolutePath",
-    absolutePath: string
-  });
-  var CompilationMode = stringUnion({
-    debug: null,
-    standard: null,
-    optimize: null
-  });
-  var BrowserUiPosition = stringUnion({
-    TopLeft: null,
-    TopRight: null,
-    BottomLeft: null,
-    BottomRight: null
-  });
-
-  // client/WebSocketMessages.ts
-  var FocusedTabAcknowledged = fieldsAuto({
-    tag: () => "FocusedTabAcknowledged"
-  });
-  var OpenEditorError = fieldsUnion("tag", {
-    EnvNotSet: fieldsAuto({
-      tag: () => "EnvNotSet"
-    }),
-    CommandFailed: fieldsAuto({
-      tag: () => "CommandFailed",
-      message: string
-    })
-  });
-  var OpenEditorFailed = fieldsAuto({
-    tag: () => "OpenEditorFailed",
-    error: OpenEditorError
-  });
-  var ErrorLocation = fieldsUnion("tag", {
-    FileOnly: fieldsAuto({
-      tag: () => "FileOnly",
-      file: AbsolutePath
-    }),
-    FileWithLineAndColumn: fieldsAuto({
-      tag: () => "FileWithLineAndColumn",
-      file: AbsolutePath,
-      line: number,
-      column: number
-    }),
-    Target: fieldsAuto({
-      tag: () => "Target",
-      targetName: string
-    })
-  });
-  var CompileError = fieldsAuto({
-    title: string,
-    location: optional(ErrorLocation),
-    htmlContent: string
-  });
-  var StatusChanged = fieldsAuto({
-    tag: () => "StatusChanged",
-    status: fieldsUnion("tag", {
-      AlreadyUpToDate: fieldsAuto({
-        tag: () => "AlreadyUpToDate",
-        compilationMode: CompilationMode,
-        browserUiPosition: BrowserUiPosition
-      }),
-      Busy: fieldsAuto({
-        tag: () => "Busy",
-        compilationMode: CompilationMode,
-        browserUiPosition: BrowserUiPosition
-      }),
-      CompileError: fieldsAuto({
-        tag: () => "CompileError",
-        compilationMode: CompilationMode,
-        browserUiPosition: BrowserUiPosition,
-        openErrorOverlay: boolean,
-        errors: array(CompileError),
-        foregroundColor: string,
-        backgroundColor: string
-      }),
-      ElmJsonError: fieldsAuto({
-        tag: () => "ElmJsonError",
-        error: string
-      }),
-      ClientError: fieldsAuto({
-        tag: () => "ClientError",
-        message: string
-      })
-    })
-  });
-  var SuccessfullyCompiled = fieldsAuto({
-    tag: () => "SuccessfullyCompiled",
-    code: string,
-    elmCompiledTimestamp: number,
-    compilationMode: CompilationMode,
-    browserUiPosition: BrowserUiPosition
-  });
-  var SuccessfullyCompiledButRecordFieldsChanged = fieldsAuto({
-    tag: () => "SuccessfullyCompiledButRecordFieldsChanged"
-  });
-  var WebSocketToClientMessage = fieldsUnion("tag", {
-    FocusedTabAcknowledged,
-    OpenEditorFailed,
-    StatusChanged,
-    SuccessfullyCompiled,
-    SuccessfullyCompiledButRecordFieldsChanged
-  });
-  var WebSocketToServerMessage = fieldsUnion("tag", {
-    ChangedCompilationMode: fieldsAuto({
-      tag: () => "ChangedCompilationMode",
-      compilationMode: CompilationMode
-    }),
-    ChangedBrowserUiPosition: fieldsAuto({
-      tag: () => "ChangedBrowserUiPosition",
-      browserUiPosition: BrowserUiPosition
-    }),
-    ChangedOpenErrorOverlay: fieldsAuto({
-      tag: () => "ChangedOpenErrorOverlay",
-      openErrorOverlay: boolean
-    }),
-    FocusedTab: fieldsAuto({
-      tag: () => "FocusedTab"
-    }),
-    PressedOpenEditor: fieldsAuto({
-      tag: () => "PressedOpenEditor",
-      file: AbsolutePath,
-      line: number,
-      column: number
-    })
-  });
-  function decodeWebSocketToClientMessage(message) {
-    if (message.startsWith("//")) {
-      const newlineIndexRaw = message.indexOf("\n");
-      const newlineIndex = newlineIndexRaw === -1 ? message.length : newlineIndexRaw;
-      const jsonString = message.slice(2, newlineIndex);
-      const parsed = SuccessfullyCompiled(JSON.parse(jsonString));
-      return { ...parsed, code: message };
-    } else {
-      return WebSocketToClientMessage(JSON.parse(message));
-    }
-  }
-
-  // client/client.ts
-  var window = globalThis;
-  var IS_WEB_WORKER = window.window === void 0;
-  var { __ELM_WATCH } = window;
-  if (typeof __ELM_WATCH !== "object" || __ELM_WATCH === null) {
-    __ELM_WATCH = {};
-    Object.defineProperty(window, "__ELM_WATCH", { value: __ELM_WATCH });
-  }
-  __ELM_WATCH.MOCKED_TIMINGS ?? (__ELM_WATCH.MOCKED_TIMINGS = false);
-  __ELM_WATCH.WEBSOCKET_TIMEOUT ?? (__ELM_WATCH.WEBSOCKET_TIMEOUT = 1e3);
-  __ELM_WATCH.ON_INIT ?? (__ELM_WATCH.ON_INIT = () => {
-  });
-  __ELM_WATCH.ON_RENDER ?? (__ELM_WATCH.ON_RENDER = () => {
-  });
-  __ELM_WATCH.ON_REACHED_IDLE_STATE ?? (__ELM_WATCH.ON_REACHED_IDLE_STATE = () => {
-  });
-  __ELM_WATCH.RELOAD_STATUSES ?? (__ELM_WATCH.RELOAD_STATUSES = {});
-  var RELOAD_MESSAGE_KEY = "__elmWatchReloadMessage";
-  var RELOAD_TARGET_NAME_KEY_PREFIX = "__elmWatchReloadTarget__";
-  __ELM_WATCH.RELOAD_PAGE ?? (__ELM_WATCH.RELOAD_PAGE = (message) => {
-    if (message !== void 0) {
-      try {
-        window.sessionStorage.setItem(RELOAD_MESSAGE_KEY, message);
-      } catch {
-      }
-    }
-    if (IS_WEB_WORKER) {
-      if (message !== void 0) {
-        console.info(message);
-      }
-      console.error(
-        message === void 0 ? "elm-watch: You need to reload the page! I seem to be running in a Web Worker, so I can\u2019t do it for you." : `elm-watch: You need to reload the page! I seem to be running in a Web Worker, so I couldn\u2019t actually reload the page (see above).`
-      );
-    } else {
-      window.location.reload();
-    }
-  });
-  __ELM_WATCH.KILL_MATCHING ?? (__ELM_WATCH.KILL_MATCHING = () => Promise.resolve());
-  __ELM_WATCH.DISCONNECT ?? (__ELM_WATCH.DISCONNECT = () => {
-  });
-  __ELM_WATCH.LOG_DEBUG ?? (__ELM_WATCH.LOG_DEBUG = console.debug);
-  var VERSION = "1.1.3";
-  var TARGET_NAME = "My target name";
-  var INITIAL_ELM_COMPILED_TIMESTAMP = Number(
-    "1725960294901"
-  );
-  var ORIGINAL_COMPILATION_MODE = "standard";
-  var ORIGINAL_BROWSER_UI_POSITION = "BottomLeft";
-  var WEBSOCKET_PORT = "54980";
-  var CONTAINER_ID = "elm-watch";
-  var DEBUG = String("false") === "true";
-  var BROWSER_UI_MOVED_EVENT = "BROWSER_UI_MOVED_EVENT";
-  var CLOSE_ALL_ERROR_OVERLAYS_EVENT = "CLOSE_ALL_ERROR_OVERLAYS_EVENT";
-  var JUST_CHANGED_BROWSER_UI_POSITION_TIMEOUT = 2e3;
-  var SEND_KEY_DO_NOT_USE_ALL_THE_TIME = Symbol(
-    "This value is supposed to only be obtained via `Status`."
-  );
-  function logDebug(...args) {
-    if (DEBUG) {
-      __ELM_WATCH.LOG_DEBUG(...args);
-    }
-  }
-  function parseBrowseUiPositionWithFallback(value) {
-    try {
-      return BrowserUiPosition(value);
-    } catch {
-      return ORIGINAL_BROWSER_UI_POSITION;
-    }
-  }
-  function run() {
-    let elmCompiledTimestampBeforeReload = void 0;
-    try {
-      const message = window.sessionStorage.getItem(RELOAD_MESSAGE_KEY);
-      if (message !== null) {
-        console.info(message);
-        window.sessionStorage.removeItem(RELOAD_MESSAGE_KEY);
-      }
-      const key = RELOAD_TARGET_NAME_KEY_PREFIX + TARGET_NAME;
-      const previous = window.sessionStorage.getItem(key);
-      if (previous !== null) {
-        const number2 = Number(previous);
-        if (Number.isFinite(number2)) {
-          elmCompiledTimestampBeforeReload = number2;
-        }
-        window.sessionStorage.removeItem(key);
-      }
-    } catch {
-    }
-    const elements = IS_WEB_WORKER ? void 0 : getOrCreateTargetRoot();
-    const browserUiPosition = elements === void 0 ? ORIGINAL_BROWSER_UI_POSITION : parseBrowseUiPositionWithFallback(elements.container.dataset.position);
-    const getNow = () => new Date();
-    runTeaProgram({
-      initMutable: initMutable(getNow, elements),
-      init: init(getNow(), browserUiPosition, elmCompiledTimestampBeforeReload),
-      update: (msg, model) => {
-        const [updatedModel, cmds] = update(msg, model);
-        const modelChanged = updatedModel !== model;
-        const reloadTrouble = model.status.tag !== updatedModel.status.tag && updatedModel.status.tag === "WaitingForReload" && updatedModel.elmCompiledTimestamp === updatedModel.elmCompiledTimestampBeforeReload;
-        const newModel = modelChanged ? {
-          ...updatedModel,
-          previousStatusTag: model.status.tag,
-          uiExpanded: reloadTrouble ? true : updatedModel.uiExpanded
-        } : model;
-        const oldErrorOverlay = getErrorOverlay(model.status);
-        const newErrorOverlay = getErrorOverlay(newModel.status);
-        const allCmds = modelChanged ? [
-          ...cmds,
-          {
-            tag: "UpdateGlobalStatus",
-            reloadStatus: statusToReloadStatus(newModel),
-            elmCompiledTimestamp: newModel.elmCompiledTimestamp
-          },
-          newModel.status.tag === newModel.previousStatusTag && oldErrorOverlay?.openErrorOverlay === newErrorOverlay?.openErrorOverlay ? { tag: "NoCmd" } : {
-            tag: "UpdateErrorOverlay",
-            errors: newErrorOverlay === void 0 || !newErrorOverlay.openErrorOverlay ? /* @__PURE__ */ new Map() : newErrorOverlay.errors,
-            sendKey: statusToSpecialCaseSendKey(newModel.status)
-          },
-          {
-            tag: "Render",
-            model: newModel,
-            manageFocus: msg.tag === "UiMsg"
-          },
-          model.browserUiPosition === newModel.browserUiPosition ? { tag: "NoCmd" } : {
-            tag: "SetBrowserUiPosition",
-            browserUiPosition: newModel.browserUiPosition
-          },
-          reloadTrouble ? { tag: "TriggerReachedIdleState", reason: "ReloadTrouble" } : { tag: "NoCmd" }
-        ] : cmds;
-        logDebug(`${msg.tag} (${TARGET_NAME})`, msg, newModel, allCmds);
-        return [newModel, allCmds];
-      },
-      runCmd: runCmd(getNow, elements)
-    }).catch((error) => {
-      console.error("elm-watch: Unexpectedly exited with error:", error);
-    });
-  }
-  function getErrorOverlay(status) {
-    return "errorOverlay" in status ? status.errorOverlay : void 0;
-  }
-  function statusToReloadStatus(model) {
-    switch (model.status.tag) {
-      case "Busy":
-      case "Connecting":
-        return { tag: "MightWantToReload" };
-      case "CompileError":
-      case "ElmJsonError":
-      case "EvalError":
-      case "Idle":
-      case "SleepingBeforeReconnect":
-      case "UnexpectedError":
-        return { tag: "NoReloadWanted" };
-      case "WaitingForReload":
-        return model.elmCompiledTimestamp === model.elmCompiledTimestampBeforeReload ? { tag: "NoReloadWanted" } : { tag: "ReloadRequested", reasons: model.status.reasons };
-    }
-  }
-  function statusToStatusType(statusTag) {
-    switch (statusTag) {
-      case "Idle":
-        return "Success";
-      case "Busy":
-      case "Connecting":
-      case "SleepingBeforeReconnect":
-      case "WaitingForReload":
-        return "Waiting";
-      case "CompileError":
-      case "ElmJsonError":
-      case "EvalError":
-      case "UnexpectedError":
-        return "Error";
-    }
-  }
-  function statusToSpecialCaseSendKey(status) {
-    switch (status.tag) {
-      case "CompileError":
-      case "Idle":
-        return status.sendKey;
-      case "Busy":
-        return SEND_KEY_DO_NOT_USE_ALL_THE_TIME;
-      case "Connecting":
-      case "SleepingBeforeReconnect":
-      case "WaitingForReload":
-      case "ElmJsonError":
-      case "EvalError":
-      case "UnexpectedError":
-        return void 0;
-    }
-  }
-  function getOrCreateContainer() {
-    const existing = document.getElementById(CONTAINER_ID);
-    if (existing !== null) {
-      return existing;
-    }
-    const container = h(HTMLDivElement, { id: CONTAINER_ID });
-    container.style.all = "unset";
-    container.style.position = "fixed";
-    container.style.zIndex = "2147483647";
-    const shadowRoot = container.attachShadow({ mode: "open" });
-    shadowRoot.append(h(HTMLStyleElement, {}, CSS));
-    document.documentElement.append(container);
-    return container;
-  }
-  function getOrCreateTargetRoot() {
-    const container = getOrCreateContainer();
-    const { shadowRoot } = container;
-    if (shadowRoot === null) {
-      throw new Error(
-        `elm-watch: Cannot set up hot reload, because an element with ID ${CONTAINER_ID} exists, but \`.shadowRoot\` is null!`
-      );
-    }
-    let overlay = shadowRoot.querySelector(`.${CLASS.overlay}`);
-    if (overlay === null) {
-      overlay = h(HTMLDivElement, {
-        className: CLASS.overlay,
-        attrs: { "data-test-id": "Overlay" }
-      });
-      shadowRoot.append(overlay);
-    }
-    let overlayCloseButton = shadowRoot.querySelector(
-      `.${CLASS.overlayCloseButton}`
-    );
-    if (overlayCloseButton === null) {
-      const closeAllErrorOverlays = () => {
-        shadowRoot.dispatchEvent(new CustomEvent(CLOSE_ALL_ERROR_OVERLAYS_EVENT));
-      };
-      overlayCloseButton = h(HTMLButtonElement, {
-        className: CLASS.overlayCloseButton,
-        attrs: {
-          "aria-label": "Close error overlay",
-          "data-test-id": "OverlayCloseButton"
-        },
-        onclick: closeAllErrorOverlays
-      });
-      shadowRoot.append(overlayCloseButton);
-      const overlayNonNull = overlay;
-      window.addEventListener(
-        "keydown",
-        (event) => {
-          if (overlayNonNull.hasChildNodes() && event.key === "Escape") {
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            closeAllErrorOverlays();
-          }
-        },
-        true
-      );
-    }
-    let root = shadowRoot.querySelector(`.${CLASS.root}`);
-    if (root === null) {
-      root = h(HTMLDivElement, { className: CLASS.root });
-      shadowRoot.append(root);
-    }
-    const targetRoot = createTargetRoot(TARGET_NAME);
-    root.append(targetRoot);
-    const elements = {
-      container,
-      shadowRoot,
-      overlay,
-      overlayCloseButton,
-      root,
-      targetRoot
-    };
-    setBrowserUiPosition(ORIGINAL_BROWSER_UI_POSITION, elements);
-    return elements;
-  }
-  function createTargetRoot(targetName) {
-    return h(HTMLDivElement, {
-      className: CLASS.targetRoot,
-      attrs: { "data-target": targetName }
-    });
-  }
-  function browserUiPositionToCss(browserUiPosition) {
-    switch (browserUiPosition) {
-      case "TopLeft":
-        return { top: "-1px", bottom: "auto", left: "-1px", right: "auto" };
-      case "TopRight":
-        return { top: "-1px", bottom: "auto", left: "auto", right: "-1px" };
-      case "BottomLeft":
-        return { top: "auto", bottom: "-1px", left: "-1px", right: "auto" };
-      case "BottomRight":
-        return { top: "auto", bottom: "-1px", left: "auto", right: "-1px" };
-    }
-  }
-  function browserUiPositionToCssForChooser(browserUiPosition) {
-    switch (browserUiPosition) {
-      case "TopLeft":
-        return { top: "auto", bottom: "0", left: "auto", right: "0" };
-      case "TopRight":
-        return { top: "auto", bottom: "0", left: "0", right: "auto" };
-      case "BottomLeft":
-        return { top: "0", bottom: "auto", left: "auto", right: "0" };
-      case "BottomRight":
-        return { top: "0", bottom: "auto", left: "0", right: "auto" };
-    }
-  }
-  function setBrowserUiPosition(browserUiPosition, elements) {
-    const isFirstTargetRoot = elements.targetRoot.previousElementSibling === null;
-    if (!isFirstTargetRoot) {
-      return;
-    }
-    elements.container.dataset.position = browserUiPosition;
-    for (const [key, value] of Object.entries(
-      browserUiPositionToCss(browserUiPosition)
-    )) {
-      elements.container.style.setProperty(key, value);
-    }
-    const isInBottomHalf = browserUiPosition === "BottomLeft" || browserUiPosition === "BottomRight";
-    elements.root.classList.toggle(CLASS.rootBottomHalf, isInBottomHalf);
-    elements.shadowRoot.dispatchEvent(
-      new CustomEvent(BROWSER_UI_MOVED_EVENT, { detail: browserUiPosition })
-    );
-  }
-  var initMutable = (getNow, elements) => (dispatch, resolvePromise) => {
-    let removeListeners = [];
-    const mutable = {
-      removeListeners: () => {
-        for (const removeListener of removeListeners) {
-          removeListener();
-        }
-      },
-      webSocket: initWebSocket(
-        getNow,
-        INITIAL_ELM_COMPILED_TIMESTAMP,
-        dispatch
-      ),
-      webSocketTimeoutId: void 0
-    };
-    mutable.webSocket.addEventListener(
-      "open",
-      () => {
-        removeListeners = [
-          addEventListener(window, "focus", (event) => {
-            if (event instanceof CustomEvent && event.detail !== TARGET_NAME) {
-              return;
-            }
-            dispatch({ tag: "FocusedTab" });
-          }),
-          addEventListener(window, "visibilitychange", () => {
-            if (document.visibilityState === "visible") {
-              dispatch({
-                tag: "PageVisibilityChangedToVisible",
-                date: getNow()
-              });
-            }
-          }),
-          ...elements === void 0 ? [] : [
-            addEventListener(
-              elements.shadowRoot,
-              BROWSER_UI_MOVED_EVENT,
-              (event) => {
-                dispatch({
-                  tag: "BrowserUiMoved",
-                  browserUiPosition: fields(
-                    (field) => field("detail", parseBrowseUiPositionWithFallback)
-                  )(event)
-                });
-              }
-            ),
-            addEventListener(
-              elements.shadowRoot,
-              CLOSE_ALL_ERROR_OVERLAYS_EVENT,
-              () => {
-                dispatch({
-                  tag: "UiMsg",
-                  date: getNow(),
-                  msg: {
-                    tag: "ChangedOpenErrorOverlay",
-                    openErrorOverlay: false
-                  }
-                });
-              }
-            )
-          ]
-        ];
-      },
-      { once: true }
-    );
-    __ELM_WATCH.RELOAD_STATUSES[TARGET_NAME] = {
-      tag: "MightWantToReload"
-    };
-    const originalOnInit = __ELM_WATCH.ON_INIT;
-    __ELM_WATCH.ON_INIT = () => {
-      dispatch({ tag: "AppInit" });
-      originalOnInit();
-    };
-    const originalKillMatching = __ELM_WATCH.KILL_MATCHING;
-    __ELM_WATCH.KILL_MATCHING = (targetName) => new Promise((resolve, reject) => {
-      if (targetName.test(TARGET_NAME) && mutable.webSocket.readyState !== WebSocket.CLOSED) {
-        mutable.webSocket.addEventListener("close", () => {
-          originalKillMatching(targetName).then(resolve).catch(reject);
-        });
-        mutable.removeListeners();
-        mutable.webSocket.close();
-        if (mutable.webSocketTimeoutId !== void 0) {
-          clearTimeout(mutable.webSocketTimeoutId);
-          mutable.webSocketTimeoutId = void 0;
-        }
-        elements?.targetRoot.remove();
-        resolvePromise(void 0);
-      } else {
-        originalKillMatching(targetName).then(resolve).catch(reject);
-      }
-    });
-    const originalDisconnect = __ELM_WATCH.DISCONNECT;
-    __ELM_WATCH.DISCONNECT = (targetName) => {
-      if (targetName.test(TARGET_NAME) && mutable.webSocket.readyState !== WebSocket.CLOSED) {
-        mutable.webSocket.close();
-      } else {
-        originalDisconnect(targetName);
-      }
-    };
-    return mutable;
-  };
-  function addEventListener(target, eventName, listener) {
-    target.addEventListener(eventName, listener);
-    return () => {
-      target.removeEventListener(eventName, listener);
-    };
-  }
-  function initWebSocket(getNow, elmCompiledTimestamp, dispatch) {
-    const hostname = window.location.hostname === "" ? "localhost" : window.location.hostname;
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const url = new URL(`${protocol}://${hostname}:${WEBSOCKET_PORT}/elm-watch`);
-    url.searchParams.set("elmWatchVersion", VERSION);
-    url.searchParams.set("targetName", TARGET_NAME);
-    url.searchParams.set("elmCompiledTimestamp", elmCompiledTimestamp.toString());
-    const webSocket = new WebSocket(url);
-    webSocket.addEventListener("open", () => {
-      dispatch({ tag: "WebSocketConnected", date: getNow() });
-    });
-    webSocket.addEventListener("close", () => {
-      dispatch({
-        tag: "WebSocketClosed",
-        date: getNow()
-      });
-    });
-    webSocket.addEventListener("message", (event) => {
-      dispatch({
-        tag: "WebSocketMessageReceived",
-        date: getNow(),
-        data: event.data
-      });
-    });
-    return webSocket;
-  }
-  var init = (date, browserUiPosition, elmCompiledTimestampBeforeReload) => {
-    const model = {
-      status: { tag: "Connecting", date, attemptNumber: 1 },
-      previousStatusTag: "Idle",
-      compilationMode: ORIGINAL_COMPILATION_MODE,
-      browserUiPosition,
-      lastBrowserUiPositionChangeDate: void 0,
-      elmCompiledTimestamp: INITIAL_ELM_COMPILED_TIMESTAMP,
-      elmCompiledTimestampBeforeReload,
-      uiExpanded: false
-    };
-    return [model, [{ tag: "Render", model, manageFocus: false }]];
-  };
-  function update(msg, model) {
-    switch (msg.tag) {
-      case "AppInit":
-        return [{ ...model }, []];
-      case "BrowserUiMoved":
-        return [{ ...model, browserUiPosition: msg.browserUiPosition }, []];
-      case "EvalErrored":
-        return [
-          {
-            ...model,
-            status: { tag: "EvalError", date: msg.date },
-            uiExpanded: true
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "EvalErrored"
-            }
-          ]
-        ];
-      case "EvalNeedsReload":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "WaitingForReload",
-              date: msg.date,
-              reasons: msg.reasons
-            }
-          },
-          []
-        ];
-      case "EvalSucceeded":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "Idle",
-              date: msg.date,
-              sendKey: SEND_KEY_DO_NOT_USE_ALL_THE_TIME
-            }
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "EvalSucceeded"
-            }
-          ]
-        ];
-      case "FocusedTab":
-        return [
-          statusToStatusType(model.status.tag) === "Error" ? { ...model } : model,
-          [
-            {
-              tag: "SendMessage",
-              message: { tag: "FocusedTab" },
-              sendKey: SEND_KEY_DO_NOT_USE_ALL_THE_TIME
-            },
-            {
-              tag: "WebSocketTimeoutBegin"
-            }
-          ]
-        ];
-      case "PageVisibilityChangedToVisible":
-        return reconnect(model, msg.date, { force: true });
-      case "SleepBeforeReconnectDone":
-        return reconnect(model, msg.date, { force: false });
-      case "UiMsg":
-        return onUiMsg(msg.date, msg.msg, model);
-      case "WebSocketClosed": {
-        const attemptNumber = "attemptNumber" in model.status ? model.status.attemptNumber + 1 : 1;
-        return [
-          {
-            ...model,
-            status: {
-              tag: "SleepingBeforeReconnect",
-              date: msg.date,
-              attemptNumber
-            }
-          },
-          [{ tag: "SleepBeforeReconnect", attemptNumber }]
-        ];
-      }
-      case "WebSocketConnected":
-        return [
-          {
-            ...model,
-            status: { tag: "Busy", date: msg.date, errorOverlay: void 0 }
-          },
-          []
-        ];
-      case "WebSocketMessageReceived": {
-        const result = parseWebSocketMessageData(msg.data);
-        switch (result.tag) {
-          case "Success":
-            return onWebSocketToClientMessage(msg.date, result.message, model);
-          case "Error":
-            return [
-              {
-                ...model,
-                status: {
-                  tag: "UnexpectedError",
-                  date: msg.date,
-                  message: result.message
-                },
-                uiExpanded: true
-              },
-              []
-            ];
-        }
-      }
-    }
-  }
-  function onUiMsg(date, msg, model) {
-    switch (msg.tag) {
-      case "ChangedBrowserUiPosition":
-        return [
-          {
-            ...model,
-            browserUiPosition: msg.browserUiPosition,
-            lastBrowserUiPositionChangeDate: date
-          },
-          [
-            {
-              tag: "SendMessage",
-              message: {
-                tag: "ChangedBrowserUiPosition",
-                browserUiPosition: msg.browserUiPosition
-              },
-              sendKey: msg.sendKey
-            }
-          ]
-        ];
-      case "ChangedCompilationMode":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "Busy",
-              date,
-              errorOverlay: getErrorOverlay(model.status)
-            },
-            compilationMode: msg.compilationMode
-          },
-          [
-            {
-              tag: "SendMessage",
-              message: {
-                tag: "ChangedCompilationMode",
-                compilationMode: msg.compilationMode
-              },
-              sendKey: msg.sendKey
-            }
-          ]
-        ];
-      case "ChangedOpenErrorOverlay":
-        return "errorOverlay" in model.status && model.status.errorOverlay !== void 0 ? [
-          {
-            ...model,
-            status: {
-              ...model.status,
-              errorOverlay: {
-                ...model.status.errorOverlay,
-                openErrorOverlay: msg.openErrorOverlay
-              }
-            },
-            uiExpanded: false
-          },
-          [
-            {
-              tag: "SendMessage",
-              message: {
-                tag: "ChangedOpenErrorOverlay",
-                openErrorOverlay: msg.openErrorOverlay
-              },
-              sendKey: model.status.tag === "Busy" ? SEND_KEY_DO_NOT_USE_ALL_THE_TIME : model.status.sendKey
-            }
-          ]
-        ] : [model, []];
-      case "PressedChevron":
-        return [{ ...model, uiExpanded: !model.uiExpanded }, []];
-      case "PressedOpenEditor":
-        return [
-          model,
-          [
-            {
-              tag: "SendMessage",
-              message: {
-                tag: "PressedOpenEditor",
-                file: msg.file,
-                line: msg.line,
-                column: msg.column
-              },
-              sendKey: msg.sendKey
-            }
-          ]
-        ];
-      case "PressedReconnectNow":
-        return reconnect(model, date, { force: true });
-    }
-  }
-  function onWebSocketToClientMessage(date, msg, model) {
-    switch (msg.tag) {
-      case "FocusedTabAcknowledged":
-        return [model, [{ tag: "WebSocketTimeoutClear" }]];
-      case "OpenEditorFailed":
-        return [
-          model.status.tag === "CompileError" ? {
-            ...model,
-            status: { ...model.status, openEditorError: msg.error },
-            uiExpanded: true
-          } : model,
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "OpenEditorFailed"
-            }
-          ]
-        ];
-      case "StatusChanged":
-        return statusChanged(date, msg, model);
-      case "SuccessfullyCompiled": {
-        const justChangedBrowserUiPosition = model.lastBrowserUiPositionChangeDate !== void 0 && date.getTime() - model.lastBrowserUiPositionChangeDate.getTime() < JUST_CHANGED_BROWSER_UI_POSITION_TIMEOUT;
-        return msg.compilationMode !== ORIGINAL_COMPILATION_MODE ? [
-          {
-            ...model,
-            status: {
-              tag: "WaitingForReload",
-              date,
-              reasons: ORIGINAL_COMPILATION_MODE === "proxy" ? [] : [
-                `compilation mode changed from ${ORIGINAL_COMPILATION_MODE} to ${msg.compilationMode}.`
-              ]
-            },
-            compilationMode: msg.compilationMode
-          },
-          []
-        ] : [
-          {
-            ...model,
-            compilationMode: msg.compilationMode,
-            elmCompiledTimestamp: msg.elmCompiledTimestamp,
-            browserUiPosition: msg.browserUiPosition,
-            lastBrowserUiPositionChangeDate: void 0
-          },
-          [
-            { tag: "Eval", code: msg.code },
-            justChangedBrowserUiPosition ? {
-              tag: "SetBrowserUiPosition",
-              browserUiPosition: msg.browserUiPosition
-            } : { tag: "NoCmd" }
-          ]
-        ];
-      }
-      case "SuccessfullyCompiledButRecordFieldsChanged":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "WaitingForReload",
-              date,
-              reasons: [
-                `record field mangling in optimize mode was different than last time.`
-              ]
-            }
-          },
-          []
-        ];
-    }
-  }
-  function statusChanged(date, { status }, model) {
-    switch (status.tag) {
-      case "AlreadyUpToDate":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "Idle",
-              date,
-              sendKey: SEND_KEY_DO_NOT_USE_ALL_THE_TIME
-            },
-            compilationMode: status.compilationMode,
-            browserUiPosition: status.browserUiPosition
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "AlreadyUpToDate"
-            }
-          ]
-        ];
-      case "Busy":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "Busy",
-              date,
-              errorOverlay: getErrorOverlay(model.status)
-            },
-            compilationMode: status.compilationMode,
-            browserUiPosition: status.browserUiPosition
-          },
-          []
-        ];
-      case "ClientError":
-        return [
-          {
-            ...model,
-            status: { tag: "UnexpectedError", date, message: status.message },
-            uiExpanded: true
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "ClientError"
-            }
-          ]
-        ];
-      case "CompileError":
-        return [
-          {
-            ...model,
-            status: {
-              tag: "CompileError",
-              date,
-              sendKey: SEND_KEY_DO_NOT_USE_ALL_THE_TIME,
-              errorOverlay: {
-                errors: new Map(
-                  status.errors.map((error) => {
-                    const overlayError = {
-                      title: error.title,
-                      location: error.location,
-                      htmlContent: error.htmlContent,
-                      foregroundColor: status.foregroundColor,
-                      backgroundColor: status.backgroundColor
-                    };
-                    const id = JSON.stringify(overlayError);
-                    return [id, overlayError];
-                  })
-                ),
-                openErrorOverlay: status.openErrorOverlay
-              },
-              openEditorError: void 0
-            },
-            compilationMode: status.compilationMode,
-            browserUiPosition: status.browserUiPosition
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "CompileError"
-            }
-          ]
-        ];
-      case "ElmJsonError":
-        return [
-          {
-            ...model,
-            status: { tag: "ElmJsonError", date, error: status.error }
-          },
-          [
-            {
-              tag: "TriggerReachedIdleState",
-              reason: "ElmJsonError"
-            }
-          ]
-        ];
-    }
-  }
-  function reconnect(model, date, { force }) {
-    return model.status.tag === "SleepingBeforeReconnect" && (date.getTime() - model.status.date.getTime() >= retryWaitMs(model.status.attemptNumber) || force) ? [
-      {
-        ...model,
-        status: {
-          tag: "Connecting",
-          date,
-          attemptNumber: model.status.attemptNumber
-        }
-      },
-      [
-        {
-          tag: "Reconnect",
-          elmCompiledTimestamp: model.elmCompiledTimestamp
-        }
-      ]
-    ] : [model, []];
-  }
-  function retryWaitMs(attemptNumber) {
-    return Math.min(1e3 + 10 * attemptNumber ** 2, 1e3 * 60);
-  }
-  function printRetryWaitMs(attemptNumber) {
-    return `${retryWaitMs(attemptNumber) / 1e3} seconds`;
-  }
-  var runCmd = (getNow, elements) => (cmd, mutable, dispatch, _resolvePromise, rejectPromise) => {
-    switch (cmd.tag) {
-      case "Eval": {
-        try {
-          const f = new Function(cmd.code);
-          f();
-          dispatch({ tag: "EvalSucceeded", date: getNow() });
-        } catch (unknownError) {
-          if (unknownError instanceof Error && unknownError.message.startsWith("ELM_WATCH_RELOAD_NEEDED")) {
-            dispatch({
-              tag: "EvalNeedsReload",
-              date: getNow(),
-              reasons: unknownError.message.split("\n\n---\n\n").slice(1)
-            });
-          } else {
-            void Promise.reject(unknownError);
-            dispatch({ tag: "EvalErrored", date: getNow() });
-          }
-        }
-        return;
-      }
-      case "NoCmd":
-        return;
-      case "Reconnect":
-        mutable.webSocket = initWebSocket(
-          getNow,
-          cmd.elmCompiledTimestamp,
-          dispatch
-        );
-        return;
-      case "Render": {
-        const { model } = cmd;
-        const info = {
-          version: VERSION,
-          webSocketUrl: new URL(mutable.webSocket.url),
-          targetName: TARGET_NAME,
-          originalCompilationMode: ORIGINAL_COMPILATION_MODE,
-          initializedElmAppsStatus: checkInitializedElmAppsStatus(),
-          errorOverlayVisible: elements !== void 0 && !elements.overlay.hidden
-        };
-        if (elements === void 0) {
-          if (model.status.tag !== model.previousStatusTag) {
-            const isError = statusToStatusType(model.status.tag) === "Error";
-            const consoleMethod = isError ? console.error : console.info;
-            consoleMethod(renderWebWorker(model, info));
-          }
-        } else {
-          const { targetRoot } = elements;
-          render(getNow, targetRoot, dispatch, model, info, cmd.manageFocus);
-        }
-        return;
-      }
-      case "SendMessage": {
-        const json = JSON.stringify(cmd.message);
-        try {
-          mutable.webSocket.send(json);
-        } catch (error) {
-          console.error("elm-watch: Failed to send WebSocket message:", error);
-        }
-        return;
-      }
-      case "SetBrowserUiPosition":
-        if (elements !== void 0) {
-          setBrowserUiPosition(cmd.browserUiPosition, elements);
-        }
-        return;
-      case "SleepBeforeReconnect":
-        setTimeout(() => {
-          if (typeof document === "undefined" || document.visibilityState === "visible") {
-            dispatch({ tag: "SleepBeforeReconnectDone", date: getNow() });
-          }
-        }, retryWaitMs(cmd.attemptNumber));
-        return;
-      case "TriggerReachedIdleState":
-        Promise.resolve().then(() => {
-          __ELM_WATCH.ON_REACHED_IDLE_STATE(cmd.reason);
-        }).catch(rejectPromise);
-        return;
-      case "UpdateErrorOverlay":
-        if (elements !== void 0) {
-          updateErrorOverlay(
-            TARGET_NAME,
-            (msg) => {
-              dispatch({ tag: "UiMsg", date: getNow(), msg });
-            },
-            cmd.sendKey,
-            cmd.errors,
-            elements.overlay,
-            elements.overlayCloseButton
-          );
-        }
-        return;
-      case "UpdateGlobalStatus":
-        __ELM_WATCH.RELOAD_STATUSES[TARGET_NAME] = cmd.reloadStatus;
-        switch (cmd.reloadStatus.tag) {
-          case "NoReloadWanted":
-          case "MightWantToReload":
-            break;
-          case "ReloadRequested":
-            try {
-              window.sessionStorage.setItem(
-                RELOAD_TARGET_NAME_KEY_PREFIX + TARGET_NAME,
-                cmd.elmCompiledTimestamp.toString()
-              );
-            } catch {
-            }
-        }
-        reloadPageIfNeeded();
-        return;
-      case "WebSocketTimeoutBegin":
-        if (mutable.webSocketTimeoutId === void 0) {
-          mutable.webSocketTimeoutId = setTimeout(() => {
-            mutable.webSocketTimeoutId = void 0;
-            mutable.webSocket.close();
-            dispatch({
-              tag: "WebSocketClosed",
-              date: getNow()
-            });
-          }, __ELM_WATCH.WEBSOCKET_TIMEOUT);
-        }
-        return;
-      case "WebSocketTimeoutClear":
-        if (mutable.webSocketTimeoutId !== void 0) {
-          clearTimeout(mutable.webSocketTimeoutId);
-          mutable.webSocketTimeoutId = void 0;
-        }
-        return;
-    }
-  };
-  function parseWebSocketMessageData(data) {
-    try {
-      return {
-        tag: "Success",
-        message: decodeWebSocketToClientMessage(string(data))
-      };
-    } catch (unknownError) {
-      return {
-        tag: "Error",
-        message: `Failed to decode web socket message sent from the server:
-${possiblyDecodeErrorToString(
-          unknownError
-        )}`
-      };
-    }
-  }
-  function possiblyDecodeErrorToString(unknownError) {
-    return unknownError instanceof DecoderError ? unknownError.format() : unknownError instanceof Error ? unknownError.message : repr(unknownError);
-  }
-  function functionToNull(value) {
-    return typeof value === "function" ? null : value;
-  }
-  var ProgramType = stringUnion({
-    "Platform.worker": null,
-    "Browser.sandbox": null,
-    "Browser.element": null,
-    "Browser.document": null,
-    "Browser.application": null,
-    Html: null
-  });
-  var ElmModule = chain(
-    record(
-      chain(
-        functionToNull,
-        multi({
-          null: () => [],
-          array: array(
-            fields((field) => field("__elmWatchProgramType", ProgramType))
-          ),
-          object: (value) => ElmModule(value)
-        })
-      )
-    ),
-    (record2) => Object.values(record2).flat()
-  );
-  var ProgramTypes = fields((field) => field("Elm", ElmModule));
-  function checkInitializedElmAppsStatus() {
-    if (window.Elm !== void 0 && "__elmWatchProxy" in window.Elm) {
-      return {
-        tag: "DebuggerModeStatus",
-        status: {
-          tag: "Disabled",
-          reason: noDebuggerYetReason
-        }
-      };
-    }
-    if (window.Elm === void 0) {
-      return { tag: "MissingWindowElm" };
-    }
-    let programTypes;
-    try {
-      programTypes = ProgramTypes(window);
-    } catch (unknownError) {
-      return {
-        tag: "DecodeError",
-        message: possiblyDecodeErrorToString(unknownError)
-      };
-    }
-    if (programTypes.length === 0) {
-      return { tag: "NoProgramsAtAll" };
-    }
-    const noDebugger = programTypes.filter((programType) => {
-      switch (programType) {
-        case "Platform.worker":
-        case "Html":
-          return true;
-        case "Browser.sandbox":
-        case "Browser.element":
-        case "Browser.document":
-        case "Browser.application":
-          return false;
-      }
-    });
-    return {
-      tag: "DebuggerModeStatus",
-      status: noDebugger.length === programTypes.length ? {
-        tag: "Disabled",
-        reason: noDebuggerReason(new Set(noDebugger))
-      } : { tag: "Enabled" }
-    };
-  }
-  function reloadPageIfNeeded() {
-    let shouldReload = false;
-    const reasons = [];
-    for (const [targetName, reloadStatus] of Object.entries(
-      __ELM_WATCH.RELOAD_STATUSES
-    )) {
-      switch (reloadStatus.tag) {
-        case "MightWantToReload":
-          return;
-        case "NoReloadWanted":
-          break;
-        case "ReloadRequested":
-          shouldReload = true;
-          if (reloadStatus.reasons.length > 0) {
-            reasons.push([targetName, reloadStatus.reasons]);
-          }
-          break;
-      }
-    }
-    if (!shouldReload) {
-      return;
-    }
-    const first = reasons[0];
-    const [separator, reasonString] = reasons.length === 1 && first !== void 0 && first[1].length === 1 ? [" ", `${first[1].join("")}
-(target: ${first[0]})`] : [
-      ":\n\n",
-      reasons.map(
-        ([targetName, subReasons]) => [
-          targetName,
-          ...subReasons.map((subReason) => `- ${subReason}`)
-        ].join("\n")
-      ).join("\n\n")
-    ];
-    const message = reasons.length === 0 ? void 0 : `elm-watch: I did a full page reload because${separator}${reasonString}`;
-    __ELM_WATCH.RELOAD_STATUSES = {};
-    __ELM_WATCH.RELOAD_PAGE(message);
-  }
-  function h(t, {
-    attrs,
-    style,
-    localName,
-    ...props
-  }, ...children) {
-    const element = document.createElement(
-      localName ?? t.name.replace(/^HTML(\w+)Element$/, "$1").replace("Anchor", "a").replace("Paragraph", "p").replace(/^([DOU])List$/, "$1l").toLowerCase()
-    );
-    Object.assign(element, props);
-    if (attrs !== void 0) {
-      for (const [key, value] of Object.entries(attrs)) {
-        element.setAttribute(key, value);
-      }
-    }
-    if (style !== void 0) {
-      for (const [key, value] of Object.entries(style)) {
-        element.style[key] = value;
-      }
-    }
-    for (const child of children) {
-      if (child !== void 0) {
-        element.append(
-          typeof child === "string" ? document.createTextNode(child) : child
-        );
-      }
-    }
-    return element;
-  }
-  function renderWebWorker(model, info) {
-    const statusData = statusIconAndText(model, info);
-    return `${statusData.icon} elm-watch: ${statusData.status} ${formatTime(
-      model.status.date
-    )} (${info.targetName})`;
-  }
-  function render(getNow, targetRoot, dispatch, model, info, manageFocus) {
-    targetRoot.replaceChildren(
-      view(
-        (msg) => {
-          dispatch({ tag: "UiMsg", date: getNow(), msg });
-        },
-        model,
-        info,
-        manageFocus
-      )
-    );
-    const firstFocusableElement = targetRoot.querySelector(`button, [tabindex]`);
-    if (manageFocus && firstFocusableElement instanceof HTMLElement) {
-      firstFocusableElement.focus();
-    }
-    __ELM_WATCH.ON_RENDER(TARGET_NAME);
-  }
-  var CLASS = {
-    browserUiPositionButton: "browserUiPositionButton",
-    browserUiPositionChooser: "browserUiPositionChooser",
-    chevronButton: "chevronButton",
-    compilationModeWithIcon: "compilationModeWithIcon",
-    container: "container",
-    debugModeIcon: "debugModeIcon",
-    envNotSet: "envNotSet",
-    errorLocationButton: "errorLocationButton",
-    errorTitle: "errorTitle",
-    expandedUiContainer: "expandedUiContainer",
-    flashError: "flashError",
-    flashSuccess: "flashSuccess",
-    overlay: "overlay",
-    overlayCloseButton: "overlayCloseButton",
-    root: "root",
-    rootBottomHalf: "rootBottomHalf",
-    shortStatusContainer: "shortStatusContainer",
-    targetName: "targetName",
-    targetRoot: "targetRoot"
-  };
-  function getStatusClass({
-    statusType,
-    statusTypeChanged,
-    hasReceivedHotReload,
-    uiRelatedUpdate,
-    errorOverlayVisible
-  }) {
-    switch (statusType) {
-      case "Success":
-        return statusTypeChanged && hasReceivedHotReload ? CLASS.flashSuccess : void 0;
-      case "Error":
-        return errorOverlayVisible ? statusTypeChanged && hasReceivedHotReload ? CLASS.flashError : void 0 : uiRelatedUpdate ? void 0 : CLASS.flashError;
-      case "Waiting":
-        return void 0;
-    }
-  }
-  var CHEVRON_UP = "\u25B2";
-  var CHEVRON_DOWN = "\u25BC";
-  var CSS = `
-input,
-button,
-select,
-textarea {
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  letter-spacing: inherit;
-  line-height: inherit;
-  color: inherit;
-  margin: 0;
-}
-
-fieldset {
-  display: grid;
-  gap: 0.25em;
-  margin: 0;
-  border: 1px solid var(--grey);
-  padding: 0.25em 0.75em 0.5em;
-}
-
-fieldset:disabled {
-  color: var(--grey);
-}
-
-p,
-dd {
-  margin: 0;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: auto auto;
-  gap: 0.25em 1em;
-  margin: 0;
-  white-space: nowrap;
-}
-
-dt {
-  text-align: right;
-  color: var(--grey);
-}
-
-time {
-  display: inline-grid;
-  overflow: hidden;
-}
-
-time::after {
-  content: attr(data-format);
-  visibility: hidden;
-  height: 0;
-}
-
-.${CLASS.overlay} {
-  position: fixed;
-  z-index: -2;
-  inset: 0;
-  overflow-y: auto;
-  padding: 2ch 0;
-}
-
-.${CLASS.overlayCloseButton} {
-  position: fixed;
-  z-index: -1;
-  top: 0;
-  right: 0;
-  appearance: none;
-  padding: 1em;
-  border: none;
-  border-radius: 0;
-  background: none;
-  cursor: pointer;
-  font-size: 1.25em;
-  filter: drop-shadow(0 0 0.125em var(--backgroundColor));
-}
-
-.${CLASS.overlayCloseButton}::before,
-.${CLASS.overlayCloseButton}::after {
-  content: "";
-  display: block;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0.125em;
-  height: 1em;
-  background-color: var(--foregroundColor);
-  transform: translate(-50%, -50%) rotate(45deg);
-}
-
-.${CLASS.overlayCloseButton}::after {
-  transform: translate(-50%, -50%) rotate(-45deg);
-}
-
-.${CLASS.overlay},
-.${CLASS.overlay} pre {
-  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-}
-
-.${CLASS.overlay} details {
-  --border-thickness: 0.125em;
-  border-top: var(--border-thickness) solid;
-  margin: 2ch 0;
-}
-
-.${CLASS.overlay} summary {
-  cursor: pointer;
-  pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 0 2ch;
-  word-break: break-word;
-}
-
-.${CLASS.overlay} summary::-webkit-details-marker {
-  display: none;
-}
-
-.${CLASS.overlay} summary::marker {
-  content: none;
-}
-
-.${CLASS.overlay} summary > * {
-  pointer-events: auto;
-}
-
-.${CLASS.errorTitle} {
-  display: inline-block;
-  font-weight: bold;
-  --padding: 1ch;
-  padding: 0 var(--padding);
-  transform: translate(calc(var(--padding) * -1), calc(-50% - var(--border-thickness) / 2));
-}
-
-.${CLASS.errorTitle}::before {
-  content: "${CHEVRON_DOWN}";
-  display: inline-block;
-  margin-right: 1ch;
-  transform: translateY(-0.0625em);
-}
-
-details[open] > summary > .${CLASS.errorTitle}::before {
-  content: "${CHEVRON_UP}";
-}
-
-.${CLASS.errorLocationButton} {
-  appearance: none;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: none;
-  text-align: left;
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.${CLASS.overlay} pre {
-  margin: 0;
-  padding: 2ch;
-  overflow-x: auto;
-}
-
-.${CLASS.root} {
-  --grey: #767676;
-  display: flex;
-  align-items: start;
-  overflow: auto;
-  max-height: 100vh;
-  max-width: 100vw;
-  color: black;
-  font-family: system-ui;
-}
-
-.${CLASS.rootBottomHalf} {
-  align-items: end;
-}
-
-.${CLASS.targetRoot} + .${CLASS.targetRoot} {
-  margin-left: -1px;
-}
-
-.${CLASS.targetRoot}:only-of-type .${CLASS.debugModeIcon},
-.${CLASS.targetRoot}:only-of-type .${CLASS.targetName} {
-  display: none;
-}
-
-.${CLASS.container} {
-  display: flex;
-  flex-direction: column-reverse;
-  background-color: white;
-  border: 1px solid var(--grey);
-}
-
-.${CLASS.rootBottomHalf} .${CLASS.container} {
-  flex-direction: column;
-}
-
-.${CLASS.envNotSet} {
-  display: grid;
-  gap: 0.75em;
-  margin: 2em 0;
-}
-
-.${CLASS.envNotSet},
-.${CLASS.root} pre {
-  border-left: 0.25em solid var(--grey);
-  padding-left: 0.5em;
-}
-
-.${CLASS.root} pre {
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.${CLASS.expandedUiContainer} {
-  padding: 1em;
-  padding-top: 0.75em;
-  display: grid;
-  gap: 0.75em;
-  outline: none;
-  contain: paint;
-}
-
-.${CLASS.rootBottomHalf} .${CLASS.expandedUiContainer} {
-  padding-bottom: 0.75em;
-}
-
-.${CLASS.expandedUiContainer}:is(.length0, .length1) {
-  grid-template-columns: min-content;
-}
-
-.${CLASS.expandedUiContainer} > dl {
-  justify-self: start;
-}
-
-.${CLASS.expandedUiContainer} label {
-  display: grid;
-  grid-template-columns: min-content auto;
-  align-items: center;
-  gap: 0.25em;
-}
-
-.${CLASS.expandedUiContainer} label.Disabled {
-  color: var(--grey);
-}
-
-.${CLASS.expandedUiContainer} label > small {
-  grid-column: 2;
-}
-
-.${CLASS.compilationModeWithIcon} {
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-}
-
-.${CLASS.browserUiPositionChooser} {
-  position: absolute;
-  display: grid;
-  grid-template-columns: min-content min-content;
-  pointer-events: none;
-}
-
-.${CLASS.browserUiPositionButton} {
-  appearance: none;
-  padding: 0;
-  border: none;
-  background: none;
-  border-radius: none;
-  pointer-events: auto;
-  width: 1em;
-  height: 1em;
-  text-align: center;
-  line-height: 1em;
-}
-
-.${CLASS.browserUiPositionButton}:hover {
-  background-color: rgba(0, 0, 0, 0.25);
-}
-
-.${CLASS.targetRoot}:not(:first-child) .${CLASS.browserUiPositionChooser} {
-  display: none;
-}
-
-.${CLASS.shortStatusContainer} {
-  line-height: 1;
-  padding: 0.25em;
-  cursor: pointer;
-  user-select: none;
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-}
-
-.${CLASS.flashError}::before,
-.${CLASS.flashSuccess}::before {
-  content: "";
-  position: absolute;
-  margin-top: 0.5em;
-  margin-left: 0.5em;
-  --size: min(500px, 100vmin);
-  width: var(--size);
-  height: var(--size);
-  border-radius: 50%;
-  animation: flash 0.7s 0.05s ease-out both;
-  pointer-events: none;
-}
-
-.${CLASS.flashError}::before {
-  background-color: #eb0000;
-}
-
-.${CLASS.flashSuccess}::before {
-  background-color: #00b600;
-}
-
-@keyframes flash {
-  from {
-    transform: translate(-50%, -50%) scale(0);
-    opacity: 0.9;
-  }
-
-  to {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0;
-  }
-}
-
-@keyframes nudge {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 0.8;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .${CLASS.flashError}::before,
-  .${CLASS.flashSuccess}::before {
-    transform: translate(-50%, -50%);
-    width: 2em;
-    height: 2em;
-    animation: nudge 0.25s ease-in-out 4 alternate forwards;
-  }
-}
-
-.${CLASS.chevronButton} {
-  appearance: none;
-  border: none;
-  border-radius: 0;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-}
-`;
-  function view(dispatch, passedModel, info, manageFocus) {
-    const model = __ELM_WATCH.MOCKED_TIMINGS ? {
-      ...passedModel,
-      status: {
-        ...passedModel.status,
-        date: new Date("2022-02-05T13:10:05Z")
-      }
-    } : passedModel;
-    const statusData = {
-      ...statusIconAndText(model, info),
-      ...viewStatus(dispatch, model, info)
-    };
-    const statusType = statusToStatusType(model.status.tag);
-    const statusTypeChanged = statusType !== statusToStatusType(model.previousStatusTag);
-    const statusClass = getStatusClass({
-      statusType,
-      statusTypeChanged,
-      hasReceivedHotReload: model.elmCompiledTimestamp !== INITIAL_ELM_COMPILED_TIMESTAMP,
-      uiRelatedUpdate: manageFocus,
-      errorOverlayVisible: info.errorOverlayVisible
-    });
-    return h(
-      HTMLDivElement,
-      { className: CLASS.container },
-      model.uiExpanded ? viewExpandedUi(
-        model.status,
-        statusData,
-        info,
-        model.browserUiPosition,
-        dispatch
-      ) : void 0,
-      h(
-        HTMLDivElement,
-        {
-          className: CLASS.shortStatusContainer,
-          onclick: () => {
-            dispatch({ tag: "PressedChevron" });
-          }
-        },
-        h(
-          HTMLButtonElement,
-          {
-            className: CLASS.chevronButton,
-            attrs: { "aria-expanded": model.uiExpanded.toString() }
-          },
-          icon(
-            model.uiExpanded ? CHEVRON_UP : CHEVRON_DOWN,
-            model.uiExpanded ? "Collapse elm-watch" : "Expand elm-watch"
-          )
-        ),
-        compilationModeIcon(model.compilationMode),
-        icon(
-          statusData.icon,
-          statusData.status,
-          statusClass === void 0 ? {} : {
-            className: statusClass,
-            onanimationend: (event) => {
-              if (event.currentTarget instanceof HTMLElement) {
-                event.currentTarget.classList.remove(statusClass);
-              }
-            }
-          }
-        ),
-        h(
-          HTMLTimeElement,
-          { dateTime: model.status.date.toISOString() },
-          formatTime(model.status.date)
-        ),
-        h(HTMLSpanElement, { className: CLASS.targetName }, TARGET_NAME)
-      )
-    );
-  }
-  function icon(emoji, alt, props) {
-    return h(
-      HTMLSpanElement,
-      { attrs: { "aria-label": alt }, ...props },
-      h(HTMLSpanElement, { attrs: { "aria-hidden": "true" } }, emoji)
-    );
-  }
-  function viewExpandedUi(status, statusData, info, browserUiPosition, dispatch) {
-    const items = [
-      ["target", info.targetName],
-      ["elm-watch", info.version],
-      ["web socket", printWebSocketUrl(info.webSocketUrl)],
-      [
-        "updated",
-        h(
-          HTMLTimeElement,
-          {
-            dateTime: status.date.toISOString(),
-            attrs: { "data-format": "2044-04-30 04:44:44" }
-          },
-          `${formatDate(status.date)} ${formatTime(status.date)}`
-        )
-      ],
-      ["status", statusData.status],
-      ...statusData.dl
-    ];
-    const browserUiPositionSendKey = statusToSpecialCaseSendKey(status);
-    return h(
-      HTMLDivElement,
-      {
-        className: `${CLASS.expandedUiContainer} length${statusData.content.length}`,
-        attrs: {
-          tabindex: "-1"
-        }
-      },
-      h(
-        HTMLDListElement,
-        {},
-        ...items.flatMap(([key, value]) => [
-          h(HTMLElement, { localName: "dt" }, key),
-          h(HTMLElement, { localName: "dd" }, value)
-        ])
-      ),
-      ...statusData.content,
-      browserUiPositionSendKey === void 0 ? void 0 : viewBrowserUiPositionChooser(
-        browserUiPosition,
-        dispatch,
-        browserUiPositionSendKey
-      )
-    );
-  }
-  var allBrowserUiPositionsInOrder = [
-    "TopLeft",
-    "TopRight",
-    "BottomLeft",
-    "BottomRight"
-  ];
-  function viewBrowserUiPositionChooser(currentPosition, dispatch, sendKey) {
-    const arrows = getBrowserUiPositionArrows(currentPosition);
-    return h(
-      HTMLDivElement,
-      {
-        className: CLASS.browserUiPositionChooser,
-        style: browserUiPositionToCssForChooser(currentPosition)
-      },
-      ...allBrowserUiPositionsInOrder.map((position) => {
-        const arrow = arrows[position];
-        return arrow === void 0 ? h(HTMLDivElement, { style: { visibility: "hidden" } }, "\xB7") : h(
-          HTMLButtonElement,
-          {
-            className: CLASS.browserUiPositionButton,
-            attrs: { "data-position": position },
-            onclick: () => {
-              dispatch({
-                tag: "ChangedBrowserUiPosition",
-                browserUiPosition: position,
-                sendKey
-              });
-            }
-          },
-          arrow
-        );
-      })
-    );
-  }
-  var ARROW_UP = "\u2191";
-  var ARROW_DOWN = "\u2193";
-  var ARROW_LEFT = "\u2190";
-  var ARROW_RIGHT = "\u2192";
-  var ARROW_UP_LEFT = "\u2196";
-  var ARROW_UP_RIGHT = "\u2197";
-  var ARROW_DOWN_LEFT = "\u2199";
-  var ARROW_DOWN_RIGHT = "\u2198";
-  function getBrowserUiPositionArrows(browserUiPosition) {
-    switch (browserUiPosition) {
-      case "TopLeft":
-        return {
-          TopLeft: void 0,
-          TopRight: ARROW_RIGHT,
-          BottomLeft: ARROW_DOWN,
-          BottomRight: ARROW_DOWN_RIGHT
-        };
-      case "TopRight":
-        return {
-          TopLeft: ARROW_LEFT,
-          TopRight: void 0,
-          BottomLeft: ARROW_DOWN_LEFT,
-          BottomRight: ARROW_DOWN
-        };
-      case "BottomLeft":
-        return {
-          TopLeft: ARROW_UP,
-          TopRight: ARROW_UP_RIGHT,
-          BottomLeft: void 0,
-          BottomRight: ARROW_RIGHT
-        };
-      case "BottomRight":
-        return {
-          TopLeft: ARROW_UP_LEFT,
-          TopRight: ARROW_UP,
-          BottomLeft: ARROW_LEFT,
-          BottomRight: void 0
-        };
-    }
-  }
-  function statusIconAndText(model, info) {
-    switch (model.status.tag) {
-      case "Busy":
-        return {
-          icon: "\u23F3",
-          status: "Waiting for compilation"
-        };
-      case "CompileError":
-        return {
-          icon: "\u{1F6A8}",
-          status: "Compilation error"
-        };
-      case "Connecting":
-        return {
-          icon: "\u{1F50C}",
-          status: "Connecting"
-        };
-      case "ElmJsonError":
-        return {
-          icon: "\u{1F6A8}",
-          status: "elm.json or inputs error"
-        };
-      case "EvalError":
-        return {
-          icon: "\u26D4\uFE0F",
-          status: "Eval error"
-        };
-      case "Idle":
-        return {
-          icon: idleIcon(info.initializedElmAppsStatus),
-          status: "Successfully compiled"
-        };
-      case "SleepingBeforeReconnect":
-        return {
-          icon: "\u{1F50C}",
-          status: "Sleeping"
-        };
-      case "UnexpectedError":
-        return {
-          icon: "\u274C",
-          status: "Unexpected error"
-        };
-      case "WaitingForReload":
-        return model.elmCompiledTimestamp === model.elmCompiledTimestampBeforeReload ? {
-          icon: "\u274C",
-          status: "Reload trouble"
-        } : {
-          icon: "\u23F3",
-          status: "Waiting for reload"
-        };
-    }
-  }
-  function viewStatus(dispatch, model, info) {
-    const { status, compilationMode } = model;
-    switch (status.tag) {
-      case "Busy":
-        return {
-          dl: [],
-          content: [
-            ...viewCompilationModeChooser({
-              dispatch,
-              sendKey: void 0,
-              compilationMode,
-              warnAboutCompilationModeMismatch: false,
-              info
-            }),
-            ...status.errorOverlay === void 0 ? [] : [viewErrorOverlayToggleButton(dispatch, status.errorOverlay)]
-          ]
-        };
-      case "CompileError":
-        return {
-          dl: [],
-          content: [
-            ...viewCompilationModeChooser({
-              dispatch,
-              sendKey: status.sendKey,
-              compilationMode,
-              warnAboutCompilationModeMismatch: true,
-              info
-            }),
-            viewErrorOverlayToggleButton(dispatch, status.errorOverlay),
-            ...status.openEditorError === void 0 ? [] : viewOpenEditorError(status.openEditorError)
-          ]
-        };
-      case "Connecting":
-        return {
-          dl: [
-            ["attempt", status.attemptNumber.toString()],
-            ["sleep", printRetryWaitMs(status.attemptNumber)]
-          ],
-          content: [
-            ...viewHttpsInfo(info.webSocketUrl),
-            h(HTMLButtonElement, { disabled: true }, "Connecting web socket\u2026")
-          ]
-        };
-      case "ElmJsonError":
-        return {
-          dl: [],
-          content: [
-            h(HTMLPreElement, { style: { minWidth: "80ch" } }, status.error)
-          ]
-        };
-      case "EvalError":
-        return {
-          dl: [],
-          content: [
-            h(
-              HTMLParagraphElement,
-              {},
-              "Check the console in the browser developer tools to see errors!"
-            )
-          ]
-        };
-      case "Idle":
-        return {
-          dl: [],
-          content: viewCompilationModeChooser({
-            dispatch,
-            sendKey: status.sendKey,
-            compilationMode,
-            warnAboutCompilationModeMismatch: true,
-            info
-          })
-        };
-      case "SleepingBeforeReconnect":
-        return {
-          dl: [
-            ["attempt", status.attemptNumber.toString()],
-            ["sleep", printRetryWaitMs(status.attemptNumber)]
-          ],
-          content: [
-            ...viewHttpsInfo(info.webSocketUrl),
-            h(
-              HTMLButtonElement,
-              {
-                onclick: () => {
-                  dispatch({ tag: "PressedReconnectNow" });
-                }
-              },
-              "Reconnect web socket now"
-            )
-          ]
-        };
-      case "UnexpectedError":
-        return {
-          dl: [],
-          content: [
-            h(
-              HTMLParagraphElement,
-              {},
-              "I ran into an unexpected error! This is the error message:"
-            ),
-            h(HTMLPreElement, {}, status.message)
-          ]
-        };
-      case "WaitingForReload":
-        return {
-          dl: [],
-          content: model.elmCompiledTimestamp === model.elmCompiledTimestampBeforeReload ? [
-            "A while ago I reloaded the page to get new compiled JavaScript.",
-            "But it looks like after the last page reload I got the same JavaScript as before, instead of new stuff!",
-            `The old JavaScript was compiled ${new Date(
-              model.elmCompiledTimestamp
-            ).toLocaleString()}, and so was the JavaScript currently running.`,
-            "I currently need to reload the page again, but fear a reload loop if I try.",
-            "Do you have accidental HTTP caching enabled maybe?",
-            "Try hard refreshing the page and see if that helps, and consider disabling HTTP caching during development."
-          ].map((text) => h(HTMLParagraphElement, {}, text)) : [h(HTMLParagraphElement, {}, "Waiting for other targets\u2026")]
-        };
-    }
-  }
-  function viewErrorOverlayToggleButton(dispatch, errorOverlay) {
-    return h(
-      HTMLButtonElement,
-      {
-        attrs: {
-          "data-test-id": errorOverlay.openErrorOverlay ? "HideErrorOverlayButton" : "ShowErrorOverlayButton"
-        },
-        onclick: () => {
-          dispatch({
-            tag: "ChangedOpenErrorOverlay",
-            openErrorOverlay: !errorOverlay.openErrorOverlay
-          });
-        }
-      },
-      errorOverlay.openErrorOverlay ? "Hide errors" : "Show errors"
-    );
-  }
-  function viewOpenEditorError(error) {
-    switch (error.tag) {
-      case "EnvNotSet":
-        return [
-          h(
-            HTMLDivElement,
-            { className: CLASS.envNotSet },
-            h(
-              HTMLParagraphElement,
-              {},
-              "\u2139\uFE0F Clicking error locations only works if you set it up."
-            ),
-            h(
-              HTMLParagraphElement,
-              {},
-              "Check this out: ",
-              h(
-                HTMLAnchorElement,
-                {
-                  href: "https://lydell.github.io/elm-watch/browser-ui/#clickable-error-locations",
-                  target: "_blank",
-                  rel: "noreferrer"
-                },
-                h(
-                  HTMLElement,
-                  { localName: "strong" },
-                  "Clickable error locations"
-                )
-              )
-            )
-          )
-        ];
-      case "CommandFailed":
-        return [
-          h(
-            HTMLParagraphElement,
-            {},
-            h(
-              HTMLElement,
-              { localName: "strong" },
-              "Opening the location in your editor failed!"
-            )
-          ),
-          h(HTMLPreElement, {}, error.message)
-        ];
-    }
-  }
-  function idleIcon(status) {
-    switch (status.tag) {
-      case "DecodeError":
-      case "MissingWindowElm":
-        return "\u274C";
-      case "NoProgramsAtAll":
-        return "\u2753";
-      case "DebuggerModeStatus":
-        return "\u2705";
-    }
-  }
-  function compilationModeIcon(compilationMode) {
-    switch (compilationMode) {
-      case "proxy":
-        return void 0;
-      case "debug":
-        return icon("\u{1F41B}", "Debug mode", { className: CLASS.debugModeIcon });
-      case "standard":
-        return void 0;
-      case "optimize":
-        return icon("\u{1F680}", "Optimize mode");
-    }
-  }
-  function printWebSocketUrl(url) {
-    const hostname = url.hostname.endsWith(".localhost") ? "localhost" : url.hostname;
-    return `${url.protocol}//${hostname}:${url.port}`;
-  }
-  function viewHttpsInfo(webSocketUrl) {
-    return webSocketUrl.protocol === "wss:" ? [
-      h(
-        HTMLParagraphElement,
-        {},
-        h(HTMLElement, { localName: "strong" }, "Having trouble connecting?")
-      ),
-      h(
-        HTMLParagraphElement,
-        {},
-        " You might need to ",
-        h(
-          HTMLAnchorElement,
-          { href: new URL(`https://${webSocketUrl.host}/accept`).href },
-          "accept elm-watch\u2019s self-signed certificate"
-        ),
-        ". "
-      ),
-      h(
-        HTMLParagraphElement,
-        {},
-        h(
-          HTMLAnchorElement,
-          {
-            href: "https://lydell.github.io/elm-watch/https/",
-            target: "_blank",
-            rel: "noreferrer"
-          },
-          "More information"
-        ),
-        "."
-      )
-    ] : [];
-  }
-  var noDebuggerYetReason = "The Elm debugger isn't available at this point.";
-  function noDebuggerReason(noDebuggerProgramTypes) {
-    return `The Elm debugger isn't supported by ${humanList(
-      Array.from(noDebuggerProgramTypes, (programType) => `\`${programType}\``),
-      "and"
-    )} programs.`;
-  }
-  function humanList(list, joinWord) {
-    const { length } = list;
-    return length <= 1 ? list.join("") : length === 2 ? list.join(` ${joinWord} `) : `${list.slice(0, length - 2).join(", ")}, ${list.slice(-2).join(` ${joinWord} `)}`;
-  }
-  function viewCompilationModeChooser({
-    dispatch,
-    sendKey,
-    compilationMode: selectedMode,
-    warnAboutCompilationModeMismatch,
-    info
-  }) {
-    switch (info.initializedElmAppsStatus.tag) {
-      case "DecodeError":
-        return [
-          h(
-            HTMLParagraphElement,
-            {},
-            "window.Elm does not look like expected! This is the error message:"
-          ),
-          h(HTMLPreElement, {}, info.initializedElmAppsStatus.message)
-        ];
-      case "MissingWindowElm":
-        return [
-          h(
-            HTMLParagraphElement,
-            {},
-            "elm-watch requires ",
-            h(
-              HTMLAnchorElement,
-              {
-                href: "https://lydell.github.io/elm-watch/window.Elm/",
-                target: "_blank",
-                rel: "noreferrer"
-              },
-              "window.Elm"
-            ),
-            " to exist, but it is undefined!"
-          )
-        ];
-      case "NoProgramsAtAll":
-        return [
-          h(
-            HTMLParagraphElement,
-            {},
-            "It looks like no Elm apps were initialized by elm-watch. Check the console in the browser developer tools to see potential errors!"
-          )
-        ];
-      case "DebuggerModeStatus": {
-        const compilationModes = [
-          {
-            mode: "debug",
-            name: "Debug",
-            status: info.initializedElmAppsStatus.status
-          },
-          { mode: "standard", name: "Standard", status: { tag: "Enabled" } },
-          { mode: "optimize", name: "Optimize", status: { tag: "Enabled" } }
-        ];
-        return [
-          h(
-            HTMLFieldSetElement,
-            { disabled: sendKey === void 0 },
-            h(HTMLLegendElement, {}, "Compilation mode"),
-            ...compilationModes.map(({ mode, name, status }) => {
-              const nameWithIcon = h(
-                HTMLSpanElement,
-                { className: CLASS.compilationModeWithIcon },
-                name,
-                mode === selectedMode ? compilationModeIcon(mode) : void 0
-              );
-              return h(
-                HTMLLabelElement,
-                { className: status.tag },
-                h(HTMLInputElement, {
-                  type: "radio",
-                  name: `CompilationMode-${info.targetName}`,
-                  value: mode,
-                  checked: mode === selectedMode,
-                  disabled: sendKey === void 0 || status.tag === "Disabled",
-                  onchange: sendKey === void 0 ? void 0 : () => {
-                    dispatch({
-                      tag: "ChangedCompilationMode",
-                      compilationMode: mode,
-                      sendKey
-                    });
-                  }
-                }),
-                ...status.tag === "Enabled" ? [
-                  nameWithIcon,
-                  warnAboutCompilationModeMismatch && mode === selectedMode && selectedMode !== info.originalCompilationMode && info.originalCompilationMode !== "proxy" ? h(
-                    HTMLElement,
-                    { localName: "small" },
-                    `Note: The code currently running is in ${ORIGINAL_COMPILATION_MODE} mode.`
-                  ) : void 0
-                ] : [
-                  nameWithIcon,
-                  h(HTMLElement, { localName: "small" }, status.reason)
-                ]
-              );
-            })
-          )
-        ];
-      }
-    }
-  }
-  var DATA_TARGET_NAMES = "data-target-names";
-  function updateErrorOverlay(targetName, dispatch, sendKey, errors, overlay, overlayCloseButton) {
-    const existingErrorElements = new Map(
-      Array.from(overlay.children, (element) => [
-        element.id,
-        {
-          targetNames: new Set(
-            (element.getAttribute(DATA_TARGET_NAMES) ?? "").split("\n")
-          ),
-          element
-        }
-      ])
-    );
-    for (const [id, { targetNames, element }] of existingErrorElements) {
-      if (targetNames.has(targetName) && !errors.has(id)) {
-        targetNames.delete(targetName);
-        if (targetNames.size === 0) {
-          element.remove();
-        } else {
-          element.setAttribute(DATA_TARGET_NAMES, [...targetNames].join("\n"));
-        }
-      }
-    }
-    let previousElement = void 0;
-    for (const [id, error] of errors) {
-      const maybeExisting = existingErrorElements.get(id);
-      if (maybeExisting === void 0) {
-        const element = viewOverlayError(
-          targetName,
-          dispatch,
-          sendKey,
-          id,
-          error
-        );
-        if (previousElement === void 0) {
-          overlay.prepend(element);
-        } else {
-          previousElement.after(element);
-        }
-        overlay.style.backgroundColor = error.backgroundColor;
-        overlayCloseButton.style.setProperty(
-          "--foregroundColor",
-          error.foregroundColor
-        );
-        overlayCloseButton.style.setProperty(
-          "--backgroundColor",
-          error.backgroundColor
-        );
-        previousElement = element;
-      } else {
-        if (!maybeExisting.targetNames.has(targetName)) {
-          maybeExisting.element.setAttribute(
-            DATA_TARGET_NAMES,
-            [...maybeExisting.targetNames, targetName].join("\n")
-          );
-        }
-        previousElement = maybeExisting.element;
-      }
-    }
-    const hidden = !overlay.hasChildNodes();
-    overlay.hidden = hidden;
-    overlayCloseButton.hidden = hidden;
-    overlayCloseButton.style.right = `${overlay.offsetWidth - overlay.clientWidth}px`;
-  }
-  function viewOverlayError(targetName, dispatch, sendKey, id, error) {
-    return h(
-      HTMLDetailsElement,
-      {
-        open: true,
-        id,
-        style: {
-          backgroundColor: error.backgroundColor,
-          color: error.foregroundColor
-        },
-        attrs: {
-          [DATA_TARGET_NAMES]: targetName
-        }
-      },
-      h(
-        HTMLElement,
-        { localName: "summary" },
-        h(
-          HTMLSpanElement,
-          {
-            className: CLASS.errorTitle,
-            style: {
-              backgroundColor: error.backgroundColor
-            }
-          },
-          error.title
-        ),
-        error.location === void 0 ? void 0 : h(
-          HTMLParagraphElement,
-          {},
-          viewErrorLocation(dispatch, sendKey, error.location)
-        )
-      ),
-      h(HTMLPreElement, { innerHTML: error.htmlContent })
-    );
-  }
-  function viewErrorLocation(dispatch, sendKey, location) {
-    switch (location.tag) {
-      case "FileOnly":
-        return viewErrorLocationButton(
-          dispatch,
-          sendKey,
-          {
-            file: location.file,
-            line: 1,
-            column: 1
-          },
-          location.file.absolutePath
-        );
-      case "FileWithLineAndColumn": {
-        return viewErrorLocationButton(
-          dispatch,
-          sendKey,
-          location,
-          `${location.file.absolutePath}:${location.line}:${location.column}`
-        );
-      }
-      case "Target":
-        return `Target: ${location.targetName}`;
-    }
-  }
-  function viewErrorLocationButton(dispatch, sendKey, location, text) {
-    return sendKey === void 0 ? text : h(
-      HTMLButtonElement,
-      {
-        className: CLASS.errorLocationButton,
-        onclick: () => {
-          dispatch({
-            tag: "PressedOpenEditor",
-            file: location.file,
-            line: location.line,
-            column: location.column,
-            sendKey
-          });
-        }
-      },
-      text
-    );
-  }
-  if (typeof WebSocket !== "undefined") {
-    run();
-  }
-})();
 (function(scope){
 'use strict';
-
-var _Platform_effectManagers = {}, _Scheduler_enqueue; // added by elm-watch
 
 function F(arity, fun, wrapper) {
   wrapper.a = arity;
@@ -2950,271 +78,6 @@ function A9(fun, a, b, c, d, e, f, g, h, i) {
 }
 
 console.warn('Compiled in DEV mode. Follow the advice at https://elm-lang.org/0.19.1/optimize for better performance and smaller assets.');
-
-
-// EQUALITY
-
-function _Utils_eq(x, y)
-{
-	for (
-		var pair, stack = [], isEqual = _Utils_eqHelp(x, y, 0, stack);
-		isEqual && (pair = stack.pop());
-		isEqual = _Utils_eqHelp(pair.a, pair.b, 0, stack)
-		)
-	{}
-
-	return isEqual;
-}
-
-function _Utils_eqHelp(x, y, depth, stack)
-{
-	if (x === y)
-	{
-		return true;
-	}
-
-	if (typeof x !== 'object' || x === null || y === null)
-	{
-		typeof x === 'function' && _Debug_crash(5);
-		return false;
-	}
-
-	if (depth > 100)
-	{
-		stack.push(_Utils_Tuple2(x,y));
-		return true;
-	}
-
-	/**/
-	if (x.$ === 'Set_elm_builtin')
-	{
-		x = $elm$core$Set$toList(x);
-		y = $elm$core$Set$toList(y);
-	}
-	if (x.$ === 'RBNode_elm_builtin' || x.$ === 'RBEmpty_elm_builtin')
-	{
-		x = $elm$core$Dict$toList(x);
-		y = $elm$core$Dict$toList(y);
-	}
-	//*/
-
-	/**_UNUSED/
-	if (x.$ < 0)
-	{
-		x = $elm$core$Dict$toList(x);
-		y = $elm$core$Dict$toList(y);
-	}
-	//*/
-
-	for (var key in x)
-	{
-		if (!_Utils_eqHelp(x[key], y[key], depth + 1, stack))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
-var _Utils_equal = F2(_Utils_eq);
-var _Utils_notEqual = F2(function(a, b) { return !_Utils_eq(a,b); });
-
-
-
-// COMPARISONS
-
-// Code in Generate/JavaScript.hs, Basics.js, and List.js depends on
-// the particular integer values assigned to LT, EQ, and GT.
-
-function _Utils_cmp(x, y, ord)
-{
-	if (typeof x !== 'object')
-	{
-		return x === y ? /*EQ*/ 0 : x < y ? /*LT*/ -1 : /*GT*/ 1;
-	}
-
-	/**/
-	if (x instanceof String)
-	{
-		var a = x.valueOf();
-		var b = y.valueOf();
-		return a === b ? 0 : a < b ? -1 : 1;
-	}
-	//*/
-
-	/**_UNUSED/
-	if (typeof x.$ === 'undefined')
-	//*/
-	/**/
-	if (x.$[0] === '#')
-	//*/
-	{
-		return (ord = _Utils_cmp(x.a, y.a))
-			? ord
-			: (ord = _Utils_cmp(x.b, y.b))
-				? ord
-				: _Utils_cmp(x.c, y.c);
-	}
-
-	// traverse conses until end of a list or a mismatch
-	for (; x.b && y.b && !(ord = _Utils_cmp(x.a, y.a)); x = x.b, y = y.b) {} // WHILE_CONSES
-	return ord || (x.b ? /*GT*/ 1 : y.b ? /*LT*/ -1 : /*EQ*/ 0);
-}
-
-var _Utils_lt = F2(function(a, b) { return _Utils_cmp(a, b) < 0; });
-var _Utils_le = F2(function(a, b) { return _Utils_cmp(a, b) < 1; });
-var _Utils_gt = F2(function(a, b) { return _Utils_cmp(a, b) > 0; });
-var _Utils_ge = F2(function(a, b) { return _Utils_cmp(a, b) >= 0; });
-
-var _Utils_compare = F2(function(x, y)
-{
-	var n = _Utils_cmp(x, y);
-	return n < 0 ? $elm$core$Basics$LT : n ? $elm$core$Basics$GT : $elm$core$Basics$EQ;
-});
-
-
-// COMMON VALUES
-
-var _Utils_Tuple0_UNUSED = 0;
-var _Utils_Tuple0 = { $: '#0' };
-
-function _Utils_Tuple2_UNUSED(a, b) { return { a: a, b: b }; }
-function _Utils_Tuple2(a, b) { return { $: '#2', a: a, b: b }; }
-
-function _Utils_Tuple3_UNUSED(a, b, c) { return { a: a, b: b, c: c }; }
-function _Utils_Tuple3(a, b, c) { return { $: '#3', a: a, b: b, c: c }; }
-
-function _Utils_chr_UNUSED(c) { return c; }
-function _Utils_chr(c) { return new String(c); }
-
-
-// RECORDS
-
-function _Utils_update(oldRecord, updatedFields)
-{
-	var newRecord = {};
-
-	for (var key in oldRecord)
-	{
-		newRecord[key] = oldRecord[key];
-	}
-
-	for (var key in updatedFields)
-	{
-		newRecord[key] = updatedFields[key];
-	}
-
-	return newRecord;
-}
-
-
-// APPEND
-
-var _Utils_append = F2(_Utils_ap);
-
-function _Utils_ap(xs, ys)
-{
-	// append Strings
-	if (typeof xs === 'string')
-	{
-		return xs + ys;
-	}
-
-	// append Lists
-	if (!xs.b)
-	{
-		return ys;
-	}
-	var root = _List_Cons(xs.a, ys);
-	xs = xs.b
-	for (var curr = root; xs.b; xs = xs.b) // WHILE_CONS
-	{
-		curr = curr.b = _List_Cons(xs.a, ys);
-	}
-	return root;
-}
-
-
-
-var _List_Nil_UNUSED = { $: 0 };
-var _List_Nil = { $: '[]' };
-
-function _List_Cons_UNUSED(hd, tl) { return { $: 1, a: hd, b: tl }; }
-function _List_Cons(hd, tl) { return { $: '::', a: hd, b: tl }; }
-
-
-var _List_cons = F2(_List_Cons);
-
-function _List_fromArray(arr)
-{
-	var out = _List_Nil;
-	for (var i = arr.length; i--; )
-	{
-		out = _List_Cons(arr[i], out);
-	}
-	return out;
-}
-
-function _List_toArray(xs)
-{
-	for (var out = []; xs.b; xs = xs.b) // WHILE_CONS
-	{
-		out.push(xs.a);
-	}
-	return out;
-}
-
-var _List_map2 = F3(function(f, xs, ys)
-{
-	for (var arr = []; xs.b && ys.b; xs = xs.b, ys = ys.b) // WHILE_CONSES
-	{
-		arr.push(A2(f, xs.a, ys.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map3 = F4(function(f, xs, ys, zs)
-{
-	for (var arr = []; xs.b && ys.b && zs.b; xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A3(f, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map4 = F5(function(f, ws, xs, ys, zs)
-{
-	for (var arr = []; ws.b && xs.b && ys.b && zs.b; ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A4(f, ws.a, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_map5 = F6(function(f, vs, ws, xs, ys, zs)
-{
-	for (var arr = []; vs.b && ws.b && xs.b && ys.b && zs.b; vs = vs.b, ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
-	{
-		arr.push(A5(f, vs.a, ws.a, xs.a, ys.a, zs.a));
-	}
-	return _List_fromArray(arr);
-});
-
-var _List_sortBy = F2(function(f, xs)
-{
-	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
-		return _Utils_cmp(f(a), f(b));
-	}));
-});
-
-var _List_sortWith = F2(function(f, xs)
-{
-	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
-		var ord = A2(f, a, b);
-		return ord === $elm$core$Basics$EQ ? 0 : ord === $elm$core$Basics$LT ? -1 : 1;
-	}));
-});
-
 
 
 var _JsArray_empty = [];
@@ -3662,6 +525,271 @@ function _Debug_regionToString(region)
 	}
 	return 'on lines ' + region.start.line + ' through ' + region.end.line;
 }
+
+
+
+// EQUALITY
+
+function _Utils_eq(x, y)
+{
+	for (
+		var pair, stack = [], isEqual = _Utils_eqHelp(x, y, 0, stack);
+		isEqual && (pair = stack.pop());
+		isEqual = _Utils_eqHelp(pair.a, pair.b, 0, stack)
+		)
+	{}
+
+	return isEqual;
+}
+
+function _Utils_eqHelp(x, y, depth, stack)
+{
+	if (x === y)
+	{
+		return true;
+	}
+
+	if (typeof x !== 'object' || x === null || y === null)
+	{
+		typeof x === 'function' && _Debug_crash(5);
+		return false;
+	}
+
+	if (depth > 100)
+	{
+		stack.push(_Utils_Tuple2(x,y));
+		return true;
+	}
+
+	/**/
+	if (x.$ === 'Set_elm_builtin')
+	{
+		x = $elm$core$Set$toList(x);
+		y = $elm$core$Set$toList(y);
+	}
+	if (x.$ === 'RBNode_elm_builtin' || x.$ === 'RBEmpty_elm_builtin')
+	{
+		x = $elm$core$Dict$toList(x);
+		y = $elm$core$Dict$toList(y);
+	}
+	//*/
+
+	/**_UNUSED/
+	if (x.$ < 0)
+	{
+		x = $elm$core$Dict$toList(x);
+		y = $elm$core$Dict$toList(y);
+	}
+	//*/
+
+	for (var key in x)
+	{
+		if (!_Utils_eqHelp(x[key], y[key], depth + 1, stack))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+var _Utils_equal = F2(_Utils_eq);
+var _Utils_notEqual = F2(function(a, b) { return !_Utils_eq(a,b); });
+
+
+
+// COMPARISONS
+
+// Code in Generate/JavaScript.hs, Basics.js, and List.js depends on
+// the particular integer values assigned to LT, EQ, and GT.
+
+function _Utils_cmp(x, y, ord)
+{
+	if (typeof x !== 'object')
+	{
+		return x === y ? /*EQ*/ 0 : x < y ? /*LT*/ -1 : /*GT*/ 1;
+	}
+
+	/**/
+	if (x instanceof String)
+	{
+		var a = x.valueOf();
+		var b = y.valueOf();
+		return a === b ? 0 : a < b ? -1 : 1;
+	}
+	//*/
+
+	/**_UNUSED/
+	if (typeof x.$ === 'undefined')
+	//*/
+	/**/
+	if (x.$[0] === '#')
+	//*/
+	{
+		return (ord = _Utils_cmp(x.a, y.a))
+			? ord
+			: (ord = _Utils_cmp(x.b, y.b))
+				? ord
+				: _Utils_cmp(x.c, y.c);
+	}
+
+	// traverse conses until end of a list or a mismatch
+	for (; x.b && y.b && !(ord = _Utils_cmp(x.a, y.a)); x = x.b, y = y.b) {} // WHILE_CONSES
+	return ord || (x.b ? /*GT*/ 1 : y.b ? /*LT*/ -1 : /*EQ*/ 0);
+}
+
+var _Utils_lt = F2(function(a, b) { return _Utils_cmp(a, b) < 0; });
+var _Utils_le = F2(function(a, b) { return _Utils_cmp(a, b) < 1; });
+var _Utils_gt = F2(function(a, b) { return _Utils_cmp(a, b) > 0; });
+var _Utils_ge = F2(function(a, b) { return _Utils_cmp(a, b) >= 0; });
+
+var _Utils_compare = F2(function(x, y)
+{
+	var n = _Utils_cmp(x, y);
+	return n < 0 ? $elm$core$Basics$LT : n ? $elm$core$Basics$GT : $elm$core$Basics$EQ;
+});
+
+
+// COMMON VALUES
+
+var _Utils_Tuple0_UNUSED = 0;
+var _Utils_Tuple0 = { $: '#0' };
+
+function _Utils_Tuple2_UNUSED(a, b) { return { a: a, b: b }; }
+function _Utils_Tuple2(a, b) { return { $: '#2', a: a, b: b }; }
+
+function _Utils_Tuple3_UNUSED(a, b, c) { return { a: a, b: b, c: c }; }
+function _Utils_Tuple3(a, b, c) { return { $: '#3', a: a, b: b, c: c }; }
+
+function _Utils_chr_UNUSED(c) { return c; }
+function _Utils_chr(c) { return new String(c); }
+
+
+// RECORDS
+
+function _Utils_update(oldRecord, updatedFields)
+{
+	var newRecord = {};
+
+	for (var key in oldRecord)
+	{
+		newRecord[key] = oldRecord[key];
+	}
+
+	for (var key in updatedFields)
+	{
+		newRecord[key] = updatedFields[key];
+	}
+
+	return newRecord;
+}
+
+
+// APPEND
+
+var _Utils_append = F2(_Utils_ap);
+
+function _Utils_ap(xs, ys)
+{
+	// append Strings
+	if (typeof xs === 'string')
+	{
+		return xs + ys;
+	}
+
+	// append Lists
+	if (!xs.b)
+	{
+		return ys;
+	}
+	var root = _List_Cons(xs.a, ys);
+	xs = xs.b
+	for (var curr = root; xs.b; xs = xs.b) // WHILE_CONS
+	{
+		curr = curr.b = _List_Cons(xs.a, ys);
+	}
+	return root;
+}
+
+
+
+var _List_Nil_UNUSED = { $: 0 };
+var _List_Nil = { $: '[]' };
+
+function _List_Cons_UNUSED(hd, tl) { return { $: 1, a: hd, b: tl }; }
+function _List_Cons(hd, tl) { return { $: '::', a: hd, b: tl }; }
+
+
+var _List_cons = F2(_List_Cons);
+
+function _List_fromArray(arr)
+{
+	var out = _List_Nil;
+	for (var i = arr.length; i--; )
+	{
+		out = _List_Cons(arr[i], out);
+	}
+	return out;
+}
+
+function _List_toArray(xs)
+{
+	for (var out = []; xs.b; xs = xs.b) // WHILE_CONS
+	{
+		out.push(xs.a);
+	}
+	return out;
+}
+
+var _List_map2 = F3(function(f, xs, ys)
+{
+	for (var arr = []; xs.b && ys.b; xs = xs.b, ys = ys.b) // WHILE_CONSES
+	{
+		arr.push(A2(f, xs.a, ys.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map3 = F4(function(f, xs, ys, zs)
+{
+	for (var arr = []; xs.b && ys.b && zs.b; xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A3(f, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map4 = F5(function(f, ws, xs, ys, zs)
+{
+	for (var arr = []; ws.b && xs.b && ys.b && zs.b; ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A4(f, ws.a, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_map5 = F6(function(f, vs, ws, xs, ys, zs)
+{
+	for (var arr = []; vs.b && ws.b && xs.b && ys.b && zs.b; vs = vs.b, ws = ws.b, xs = xs.b, ys = ys.b, zs = zs.b) // WHILE_CONSES
+	{
+		arr.push(A5(f, vs.a, ws.a, xs.a, ys.a, zs.a));
+	}
+	return _List_fromArray(arr);
+});
+
+var _List_sortBy = F2(function(f, xs)
+{
+	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
+		return _Utils_cmp(f(a), f(b));
+	}));
+});
+
+var _List_sortWith = F2(function(f, xs)
+{
+	return _List_fromArray(_List_toArray(xs).sort(function(a, b) {
+		var ord = A2(f, a, b);
+		return ord === $elm$core$Basics$EQ ? 0 : ord === $elm$core$Basics$LT ? -1 : 1;
+	}));
+});
 
 
 
@@ -4534,14 +1662,12 @@ function _Scheduler_fail(error)
 	};
 }
 
-// This function was slightly modified by elm-watch.
 function _Scheduler_binding(callback)
 {
 	return {
 		$: 2,
 		b: callback,
-		// c: null // commented out by elm-watch
-		c: Function.prototype // added by elm-watch
+		c: null
 	};
 }
 
@@ -4684,8 +1810,7 @@ function _Scheduler_step(proc)
 			proc.f.c = proc.f.b(function(newRoot) {
 				proc.f = newRoot;
 				_Scheduler_enqueue(proc);
-			// }); // commented out by elm-watch
-			}) || Function.prototype; // added by elm-watch
+			});
 			return;
 		}
 		else if (rootTag === 5)
@@ -4727,19 +1852,14 @@ function _Process_sleep(time)
 // PROGRAMS
 
 
-// This function was slightly modified by elm-watch.
 var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 {
 	return _Platform_initialize(
-		"Platform.worker", // added by elm-watch
-		false, // isDebug, added by elm-watch
-		debugMetadata, // added by elm-watch
 		flagDecoder,
 		args,
 		impl.init,
-		// impl.update, // commented out by elm-watch
-		// impl.subscriptions, // commented out by elm-watch
-		impl, // added by elm-watch
+		impl.update,
+		impl.subscriptions,
 		function() { return function() {} }
 	);
 });
@@ -4749,178 +1869,26 @@ var _Platform_worker = F4(function(impl, flagDecoder, debugMetadata, args)
 // INITIALIZE A PROGRAM
 
 
-// This whole function was changed by elm-watch.
-function _Platform_initialize(programType, isDebug, debugMetadata, flagDecoder, args, init, impl, stepperBuilder)
+function _Platform_initialize(flagDecoder, args, init, update, subscriptions, stepperBuilder)
 {
-	if (args === "__elmWatchReturnData") {
-		return { impl: impl, debugMetadata: debugMetadata, flagDecoder : flagDecoder, programType: programType };
-	}
-
-	var flags = _Json_wrap(args ? args['flags'] : undefined);
-	var flagResult = A2(_Json_run, flagDecoder, flags);
-	$elm$core$Result$isOk(flagResult) || _Debug_crash(2 /**/, _Json_errorToString(flagResult.a) /**/);
+	var result = A2(_Json_run, flagDecoder, _Json_wrap(args ? args['flags'] : undefined));
+	$elm$core$Result$isOk(result) || _Debug_crash(2 /**/, _Json_errorToString(result.a) /**/);
 	var managers = {};
-	var initUrl = programType === "Browser.application" ? _Browser_getUrl() : undefined;
-	globalThis.__ELM_WATCH.INIT_URL = initUrl;
-	var initPair = init(flagResult.a);
+	var initPair = init(result.a);
 	var model = initPair.a;
 	var stepper = stepperBuilder(sendToApp, model);
 	var ports = _Platform_setupEffects(managers, sendToApp);
-	var update;
-	var subscriptions;
 
-	function setUpdateAndSubscriptions() {
-		update = impl.update || impl._impl.update;
-		subscriptions = impl.subscriptions || impl._impl.subscriptions;
-		if (isDebug) {
-			update = $elm$browser$Debugger$Main$wrapUpdate(update);
-			subscriptions = $elm$browser$Debugger$Main$wrapSubs(subscriptions);
-		}
-	}
-
-	function sendToApp(msg, viewMetadata) {
+	function sendToApp(msg, viewMetadata)
+	{
 		var pair = A2(update, msg, model);
 		stepper(model = pair.a, viewMetadata);
 		_Platform_enqueueEffects(managers, pair.b, subscriptions(model));
 	}
 
-	setUpdateAndSubscriptions();
 	_Platform_enqueueEffects(managers, initPair.b, subscriptions(model));
 
-	function __elmWatchHotReload(newData, new_Platform_effectManagers, new_Scheduler_enqueue, moduleName) {
-		_Platform_enqueueEffects(managers, _Platform_batch(_List_Nil), _Platform_batch(_List_Nil));
-		_Scheduler_enqueue = new_Scheduler_enqueue;
-
-		var reloadReasons = [];
-
-		for (var key in new_Platform_effectManagers) {
-			var manager = new_Platform_effectManagers[key];
-			if (!(key in _Platform_effectManagers)) {
-				_Platform_effectManagers[key] = manager;
-				managers[key] = _Platform_instantiateManager(manager, sendToApp);
-				if (manager.a) {
-					reloadReasons.push("a new port '" + key + "' was added. The idea is to give JavaScript code a chance to set it up!");
-					manager.a(key, sendToApp)
-				}
-			}
-		}
-
-		for (var key in newData.impl) {
-			if (key === "_impl" && impl._impl) {
-				for (var subKey in newData.impl[key]) {
-					impl._impl[subKey] = newData.impl[key][subKey];
-				}
-			} else {
-				impl[key] = newData.impl[key];
-			}
-		}
-
-		var newFlagResult = A2(_Json_run, newData.flagDecoder, flags);
-		if (!$elm$core$Result$isOk(newFlagResult)) {
-			return reloadReasons.concat("the flags type in `" + moduleName + "` changed and now the passed flags aren't correct anymore. The idea is to try to run with new flags!\nThis is the error:\n" + _Json_errorToString(newFlagResult.a));
-		}
-		if (!_Utils_eq_elmWatchInternal(debugMetadata, newData.debugMetadata)) {
-			return reloadReasons.concat("the message type in `" + moduleName + '` changed in debug mode ("debug metadata" changed).');
-		}
-		init = impl.init || impl._impl.init;
-		if (isDebug) {
-			init = A3($elm$browser$Debugger$Main$wrapInit, _Json_wrap(newData.debugMetadata), initPair.a.popout, init);
-		}
-		globalThis.__ELM_WATCH.INIT_URL = initUrl;
-		var newInitPair = init(newFlagResult.a);
-		if (!_Utils_eq_elmWatchInternal(initPair, newInitPair)) {
-			return reloadReasons.concat("`" + moduleName + ".init` returned something different than last time. Let's start fresh!");
-		}
-
-		setUpdateAndSubscriptions();
-		stepper(model, true /* isSync */);
-		_Platform_enqueueEffects(managers, _Platform_batch(_List_Nil), subscriptions(model));
-		return reloadReasons;
-	}
-
-	return Object.defineProperties(
-		ports ? { ports: ports } : {},
-		{
-			__elmWatchHotReload: { value: __elmWatchHotReload },
-			__elmWatchProgramType: { value: programType },
-		}
-	);
-}
-
-// This whole function was added by elm-watch.
-// Copy-paste of _Utils_eq but does not assume that x and y have the same type,
-// and considers functions to always be equal.
-function _Utils_eq_elmWatchInternal(x, y)
-{
-	for (
-		var pair, stack = [], isEqual = _Utils_eqHelp_elmWatchInternal(x, y, 0, stack);
-		isEqual && (pair = stack.pop());
-		isEqual = _Utils_eqHelp_elmWatchInternal(pair.a, pair.b, 0, stack)
-		)
-	{}
-
-	return isEqual;
-}
-
-// This whole function was added by elm-watch.
-function _Utils_eqHelp_elmWatchInternal(x, y, depth, stack)
-{
-	if (x === y) {
-		return true;
-	}
-
-	var xType = _Utils_typeof_elmWatchInternal(x);
-	var yType = _Utils_typeof_elmWatchInternal(y);
-
-	if (xType !== yType) {
-		return false;
-	}
-
-	switch (xType) {
-		case "primitive":
-			return false;
-		case "function":
-			return true;
-	}
-
-	if (x.$ !== y.$) {
-		return false;
-	}
-
-	if (x.$ === 'Set_elm_builtin') {
-		x = $elm$core$Set$toList(x);
-		y = $elm$core$Set$toList(y);
-	} else if (x.$ === 'RBNode_elm_builtin' || x.$ === 'RBEmpty_elm_builtin' || x.$ < 0) {
-		x = $elm$core$Dict$toList(x);
-		y = $elm$core$Dict$toList(y);
-	}
-
-	if (Object.keys(x).length !== Object.keys(y).length) {
-		return false;
-	}
-
-	if (depth > 100) {
-		stack.push(_Utils_Tuple2(x, y));
-		return true;
-	}
-
-	for (var key in x) {
-		if (!_Utils_eqHelp_elmWatchInternal(x[key], y[key], depth + 1, stack)) {
-			return false;
-		}
-	}
-	return true;
-}
-
-// This whole function was added by elm-watch.
-function _Utils_typeof_elmWatchInternal(x)
-{
-	var type = typeof x;
-	return type === "function"
-		? "function"
-		: type !== "object" || type === null
-		? "primitive"
-		: "objectOrArray";
+	return ports ? { ports: ports } : {};
 }
 
 
@@ -5369,55 +2337,11 @@ function _Platform_mergeExportsProd(obj, exports)
 }
 
 
-// This whole function was changed by elm-watch.
 function _Platform_export(exports)
 {
-	var reloadReasons = _Platform_mergeExportsElmWatch('Elm', scope['Elm'] || (scope['Elm'] = {}), exports);
-	if (reloadReasons.length > 0) {
-		throw new Error(["ELM_WATCH_RELOAD_NEEDED"].concat(Array.from(new Set(reloadReasons))).join("\n\n---\n\n"));
-	}
-}
-
-// This whole function was added by elm-watch.
-function _Platform_mergeExportsElmWatch(moduleName, obj, exports)
-{
-	var reloadReasons = [];
-	for (var name in exports) {
-		if (name === "init") {
-			if ("init" in obj) {
-				if ("__elmWatchApps" in obj) {
-					var data = exports.init("__elmWatchReturnData");
-					for (var index = 0; index < obj.__elmWatchApps.length; index++) {
-						var app = obj.__elmWatchApps[index];
-						if (app.__elmWatchProgramType !== data.programType) {
-							reloadReasons.push("`" + moduleName + ".main` changed from `" + app.__elmWatchProgramType + "` to `" + data.programType + "`.");
-						} else {
-							try {
-								var innerReasons = app.__elmWatchHotReload(data, _Platform_effectManagers, _Scheduler_enqueue, moduleName);
-								reloadReasons = reloadReasons.concat(innerReasons);
-							} catch (error) {
-								reloadReasons.push("hot reload for `" + moduleName + "` failed, probably because of incompatible model changes.\nThis is the error:\n" + error + "\n" + (error ? error.stack : ""));
-							}
-						}
-					}
-				} else {
-					throw new Error("elm-watch: I'm trying to create `" + moduleName + ".init`, but it already exists and wasn't created by elm-watch. Maybe a duplicate script is getting loaded accidentally?");
-				}
-			} else {
-				obj.__elmWatchApps = [];
-				obj.init = function() {
-					var app = exports.init.apply(exports, arguments);
-					obj.__elmWatchApps.push(app);
-					globalThis.__ELM_WATCH.ON_INIT();
-					return app;
-				};
-			}
-		} else {
-			var innerReasons = _Platform_mergeExportsElmWatch(moduleName + "." + name, obj[name] || (obj[name] = {}), exports[name]);
-			reloadReasons = reloadReasons.concat(innerReasons);
-		}
-	}
-	return reloadReasons;
+	scope['Elm']
+		? _Platform_mergeExportsDebug('Elm', scope['Elm'], exports)
+		: scope['Elm'] = exports;
 }
 
 
@@ -5449,41 +2373,23 @@ function _VirtualDom_appendChild(parent, child)
 	parent.appendChild(child);
 }
 
-// This whole function was changed by elm-watch.
 var _VirtualDom_init = F4(function(virtualNode, flagDecoder, debugMetadata, args)
 {
-	var programType = "Html";
+	// NOTE: this function needs _Platform_export available to work
 
-	if (args === "__elmWatchReturnData") {
-		return { virtualNode: virtualNode, programType: programType };
-	}
-
-	/**_UNUSED/ // always UNUSED with elm-watch
+	/**_UNUSED/
 	var node = args['node'];
 	//*/
 	/**/
 	var node = args && args['node'] ? args['node'] : _Debug_crash(0);
 	//*/
 
-	var nextNode = _VirtualDom_render(virtualNode, function() {});
-	node.parentNode.replaceChild(nextNode, node);
-	node = nextNode;
-	var sendToApp = function() {};
-
-	function __elmWatchHotReload(newData) {
-		var patches = _VirtualDom_diff(virtualNode, newData.virtualNode);
-		node = _VirtualDom_applyPatches(node, virtualNode, patches, sendToApp);
-		virtualNode = newData.virtualNode;
-		return [];
-	}
-
-	return Object.defineProperties(
-		{},
-		{
-			__elmWatchHotReload: { value: __elmWatchHotReload },
-			__elmWatchProgramType: { value: programType },
-		}
+	node.parentNode.replaceChild(
+		_VirtualDom_render(virtualNode, function() {}),
+		node
 	);
+
+	return {};
 });
 
 
@@ -7032,22 +3938,17 @@ function _VirtualDom_dekey(keyedNode)
 
 var _Debugger_element;
 
-// This function was slightly modified by elm-watch.
 var _Browser_element = _Debugger_element || F4(function(impl, flagDecoder, debugMetadata, args)
 {
 	return _Platform_initialize(
-		impl._impl ? "Browser.sandbox" : "Browser.element", // added by elm-watch
-		false, // isDebug, added by elm-watch
-		debugMetadata, // added by elm-watch
 		flagDecoder,
 		args,
 		impl.init,
-		// impl.update, // commented out by elm-watch
-		// impl.subscriptions, // commented out by elm-watch
-		impl, // added by elm-watch
+		impl.update,
+		impl.subscriptions,
 		function(sendToApp, initialModel) {
-			// var view = impl.view; // commented out by elm-watch
-			/**_UNUSED/ // always UNUSED with elm-watch
+			var view = impl.view;
+			/**_UNUSED/
 			var domNode = args['node'];
 			//*/
 			/**/
@@ -7057,8 +3958,7 @@ var _Browser_element = _Debugger_element || F4(function(impl, flagDecoder, debug
 
 			return _Browser_makeAnimator(initialModel, function(model)
 			{
-				// var nextNode = view(model); // commented out by elm-watch
-				var nextNode = impl.view(model); // added by elm-watch
+				var nextNode = view(model);
 				var patches = _VirtualDom_diff(currNode, nextNode);
 				domNode = _VirtualDom_applyPatches(domNode, currNode, patches, sendToApp);
 				currNode = nextNode;
@@ -7074,30 +3974,24 @@ var _Browser_element = _Debugger_element || F4(function(impl, flagDecoder, debug
 
 var _Debugger_document;
 
-// This function was slightly modified by elm-watch.
 var _Browser_document = _Debugger_document || F4(function(impl, flagDecoder, debugMetadata, args)
 {
 	return _Platform_initialize(
-		impl._impl ? "Browser.application" : "Browser.document", // added by elm-watch
-		false, // isDebug, added by elm-watch
-		debugMetadata, // added by elm-watch
 		flagDecoder,
 		args,
 		impl.init,
-		// impl.update, // commented out by elm-watch
-		// impl.subscriptions, // commented out by elm-watch
-		impl, // added by elm-watch
+		impl.update,
+		impl.subscriptions,
 		function(sendToApp, initialModel) {
 			var divertHrefToApp = impl.setup && impl.setup(sendToApp)
-			// var view = impl.view; // commented out by elm-watch
+			var view = impl.view;
 			var title = _VirtualDom_doc.title;
 			var bodyNode = _VirtualDom_doc.body;
 			var currNode = _VirtualDom_virtualize(bodyNode);
 			return _Browser_makeAnimator(initialModel, function(model)
 			{
 				_VirtualDom_divertHrefToApp = divertHrefToApp;
-				// var doc = view(model); // commented out by elm-watch
-				var doc = impl.view(model); // added by elm-watch
+				var doc = view(model);
 				var nextNode = _VirtualDom_node('body')(_List_Nil)(doc.body);
 				var patches = _VirtualDom_diff(currNode, nextNode);
 				bodyNode = _VirtualDom_applyPatches(bodyNode, currNode, patches, sendToApp);
@@ -7157,13 +4051,11 @@ function _Browser_makeAnimator(model, draw)
 // APPLICATION
 
 
-// This function was slightly modified by elm-watch.
 function _Browser_application(impl)
 {
-	// var onUrlChange = impl.onUrlChange; // commented out by elm-watch
-	// var onUrlRequest = impl.onUrlRequest; // commented out by elm-watch
-	// var key = function() { key.a(onUrlChange(_Browser_getUrl())); }; // commented out by elm-watch
-	var key = function() { key.a(impl.onUrlChange(_Browser_getUrl())); }; // added by elm-watch
+	var onUrlChange = impl.onUrlChange;
+	var onUrlRequest = impl.onUrlRequest;
+	var key = function() { key.a(onUrlChange(_Browser_getUrl())); };
 
 	return _Browser_document({
 		setup: function(sendToApp)
@@ -7180,7 +4072,7 @@ function _Browser_application(impl)
 					var href = domNode.href;
 					var curr = _Browser_getUrl();
 					var next = $elm$url$Url$fromString(href).a;
-					sendToApp(impl.onUrlRequest(
+					sendToApp(onUrlRequest(
 						(next
 							&& curr.protocol === next.protocol
 							&& curr.host === next.host
@@ -7194,14 +4086,11 @@ function _Browser_application(impl)
 		},
 		init: function(flags)
 		{
-			// return A3(impl.init, flags, _Browser_getUrl(), key); // commented out by elm-watch
-			return A3(impl.init, flags, globalThis.__ELM_WATCH.INIT_URL, key); // added by elm-watch
+			return A3(impl.init, flags, _Browser_getUrl(), key);
 		},
-		// view: impl.view, // commented out by elm-watch
-		// update: impl.update, // commented out by elm-watch
-		// subscriptions: impl.subscriptions // commented out by elm-watch
-		view: function(model) { return impl.view(model); }, // added by elm-watch
-		_impl: impl // added by elm-watch
+		view: impl.view,
+		update: impl.update,
+		subscriptions: impl.subscriptions
 	});
 }
 
@@ -7481,12 +4370,31 @@ function _Browser_load(url)
 		}
 	}));
 }
-var $author$project$Main$NotExist = {$: 'NotExist'};
-var $author$project$Main$init = $author$project$Main$NotExist;
-var $elm$core$Basics$EQ = {$: 'EQ'};
-var $elm$core$Basics$GT = {$: 'GT'};
-var $elm$core$Basics$LT = {$: 'LT'};
 var $elm$core$List$cons = _List_cons;
+var $elm$core$Elm$JsArray$foldr = _JsArray_foldr;
+var $elm$core$Array$foldr = F3(
+	function (func, baseCase, _v0) {
+		var tree = _v0.c;
+		var tail = _v0.d;
+		var helper = F2(
+			function (node, acc) {
+				if (node.$ === 'SubTree') {
+					var subTree = node.a;
+					return A3($elm$core$Elm$JsArray$foldr, helper, acc, subTree);
+				} else {
+					var values = node.a;
+					return A3($elm$core$Elm$JsArray$foldr, func, acc, values);
+				}
+			});
+		return A3(
+			$elm$core$Elm$JsArray$foldr,
+			helper,
+			A3($elm$core$Elm$JsArray$foldr, func, baseCase, tail),
+			tree);
+	});
+var $elm$core$Array$toList = function (array) {
+	return A3($elm$core$Array$foldr, $elm$core$List$cons, _List_Nil, array);
+};
 var $elm$core$Dict$foldr = F3(
 	function (func, acc, t) {
 		foldr:
@@ -7539,30 +4447,11 @@ var $elm$core$Set$toList = function (_v0) {
 	var dict = _v0.a;
 	return $elm$core$Dict$keys(dict);
 };
-var $elm$core$Elm$JsArray$foldr = _JsArray_foldr;
-var $elm$core$Array$foldr = F3(
-	function (func, baseCase, _v0) {
-		var tree = _v0.c;
-		var tail = _v0.d;
-		var helper = F2(
-			function (node, acc) {
-				if (node.$ === 'SubTree') {
-					var subTree = node.a;
-					return A3($elm$core$Elm$JsArray$foldr, helper, acc, subTree);
-				} else {
-					var values = node.a;
-					return A3($elm$core$Elm$JsArray$foldr, func, acc, values);
-				}
-			});
-		return A3(
-			$elm$core$Elm$JsArray$foldr,
-			helper,
-			A3($elm$core$Elm$JsArray$foldr, func, baseCase, tail),
-			tree);
-	});
-var $elm$core$Array$toList = function (array) {
-	return A3($elm$core$Array$foldr, $elm$core$List$cons, _List_Nil, array);
-};
+var $elm$core$Basics$EQ = {$: 'EQ'};
+var $elm$core$Basics$GT = {$: 'GT'};
+var $elm$core$Basics$LT = {$: 'LT'};
+var $author$project$Main$NotExist = {$: 'NotExist'};
+var $author$project$Main$init = {current: $author$project$Main$NotExist, history: _List_Nil};
 var $elm$core$Result$Err = function (a) {
 	return {$: 'Err', a: a};
 };
@@ -8275,7 +5164,6 @@ var $elm$core$Platform$Cmd$batch = _Platform_batch;
 var $elm$core$Platform$Cmd$none = $elm$core$Platform$Cmd$batch(_List_Nil);
 var $elm$core$Platform$Sub$batch = _Platform_batch;
 var $elm$core$Platform$Sub$none = $elm$core$Platform$Sub$batch(_List_Nil);
-// This function was slightly modified by elm-watch.
 var $elm$browser$Browser$sandbox = function (impl) {
 	return _Browser_element(
 		{
@@ -8291,12 +5179,11 @@ var $elm$browser$Browser$sandbox = function (impl) {
 						A2(impl.update, msg, model),
 						$elm$core$Platform$Cmd$none);
 				}),
-			// view: impl.view // commented out by elm-watch
-			view: function(model) { return impl.view(model); }, // added by elm-watch
-			_impl: impl // added by elm-watch
+			view: impl.view
 		});
 };
 var $author$project$Main$BeingReviewed = {$: 'BeingReviewed'};
+var $author$project$Main$Confirmed = {$: 'Confirmed'};
 var $author$project$Main$ConnectedToGroup = function (a) {
 	return {$: 'ConnectedToGroup', a: a};
 };
@@ -8320,117 +5207,161 @@ var $author$project$Main$SelfPublished = {$: 'SelfPublished'};
 var $author$project$Main$Uncatagorized = {$: 'Uncatagorized'};
 var $author$project$Main$Unconfirmed = {$: 'Unconfirmed'};
 var $author$project$Main$update = F2(
-	function (msg, model) {
+	function (msg, states) {
+		var visibility = states.current;
+		var newState = function () {
+			if (msg.$ === 'Reset') {
+				return $author$project$Main$NotExist;
+			} else {
+				switch (visibility.$) {
+					case 'NotExist':
+						if ((msg.$ === 'AuthorMsg') && (msg.a.$ === 'CreateExposition')) {
+							var _v4 = msg.a;
+							return $author$project$Main$InProgress(
+								{collab: $author$project$Main$NoCollab, connected: $author$project$Main$NotConnected, share: $author$project$Main$Private});
+						} else {
+							return visibility;
+						}
+					case 'InProgress':
+						var m = visibility.a;
+						_v5$6:
+						while (true) {
+							switch (msg.$) {
+								case 'AuthorMsg':
+									switch (msg.a.$) {
+										case 'ChangeShareLevel':
+											var s = msg.a.a;
+											return $author$project$Main$InProgress(
+												_Utils_update(
+													m,
+													{share: s}));
+										case 'PublicationAction':
+											switch (msg.a.a.$) {
+												case 'SubmitForReview':
+													var _v6 = msg.a.a;
+													return $author$project$Main$InReview(
+														{collab: m.collab, connected: m.connected, review: $author$project$Main$Uncatagorized, share: m.share});
+												case 'SelfPublish':
+													var _v7 = msg.a.a;
+													return $author$project$Main$Published(
+														{collab: m.collab, connected: m.connected, publication: $author$project$Main$SelfPublished, share: m.share});
+												default:
+													break _v5$6;
+											}
+										case 'ConnectAction':
+											var ca = msg.a.a;
+											if (ca.$ === 'ConnectToGroup') {
+												return $author$project$Main$InProgress(
+													_Utils_update(
+														m,
+														{
+															connected: $author$project$Main$ConnectedToGroup($author$project$Main$Unconfirmed)
+														}));
+											} else {
+												return $author$project$Main$InProgress(
+													_Utils_update(
+														m,
+														{
+															connected: $author$project$Main$ConnectedToPortal($author$project$Main$Unconfirmed)
+														}));
+											}
+										default:
+											break _v5$6;
+									}
+								case 'AdminMsg':
+									switch (msg.a.$) {
+										case 'AcceptConnection':
+											var _v9 = msg.a;
+											return $author$project$Main$InProgress(
+												_Utils_update(
+													m,
+													{
+														connected: function () {
+															var _v10 = m.connected;
+															switch (_v10.$) {
+																case 'ConnectedToGroup':
+																	return $author$project$Main$ConnectedToGroup($author$project$Main$Confirmed);
+																case 'ConnectedToPortal':
+																	return $author$project$Main$ConnectedToPortal($author$project$Main$Confirmed);
+																default:
+																	return $author$project$Main$ConnectedToPortal($author$project$Main$Confirmed);
+															}
+														}()
+													}));
+										case 'RejectConnection':
+											var _v11 = msg.a;
+											return $author$project$Main$InProgress(
+												_Utils_update(
+													m,
+													{connected: $author$project$Main$NotConnected}));
+										default:
+											break _v5$6;
+									}
+								default:
+									break _v5$6;
+							}
+						}
+						return visibility;
+					case 'InReview':
+						var m = visibility.a;
+						_v12$5:
+						while (true) {
+							if (msg.$ === 'AdminMsg') {
+								switch (msg.a.$) {
+									case 'RejectPublication':
+										var _v13 = msg.a;
+										return $author$project$Main$InProgress(
+											{collab: m.collab, connected: m.connected, share: m.share});
+									case 'AcceptPublication':
+										var ptype = msg.a.a;
+										return $author$project$Main$Published(
+											{collab: m.collab, connected: m.connected, publication: ptype, share: m.share});
+									case 'PutInRevision':
+										var _v14 = msg.a;
+										return $author$project$Main$InReview(
+											{collab: m.collab, connected: m.connected, review: $author$project$Main$Revision, share: m.share});
+									case 'PutInReview':
+										var _v15 = msg.a;
+										return $author$project$Main$InReview(
+											_Utils_update(
+												m,
+												{review: $author$project$Main$BeingReviewed}));
+									case 'AssignReviewer':
+										var _v16 = msg.a;
+										return $author$project$Main$InReview(
+											_Utils_update(
+												m,
+												{review: $author$project$Main$BeingReviewed}));
+									default:
+										break _v12$5;
+								}
+							} else {
+								break _v12$5;
+							}
+						}
+						return visibility;
+					default:
+						var m = visibility.a;
+						if ((msg.$ === 'AdminMsg') && (msg.a.$ === 'Unpublish')) {
+							var _v18 = msg.a;
+							return $author$project$Main$InProgress(
+								{collab: m.collab, connected: m.connected, share: m.share});
+						} else {
+							return visibility;
+						}
+				}
+			}
+		}();
 		if (msg.$ === 'Reset') {
 			return $author$project$Main$init;
 		} else {
-			switch (model.$) {
-				case 'NotExist':
-					if ((msg.$ === 'AuthorMsg') && (msg.a.$ === 'CreateExposition')) {
-						var _v3 = msg.a;
-						return $author$project$Main$InProgress(
-							{collab: $author$project$Main$NoCollab, connected: $author$project$Main$NotConnected, share: $author$project$Main$Private});
-					} else {
-						return model;
-					}
-				case 'InProgress':
-					var m = model.a;
-					_v4$4:
-					while (true) {
-						if (msg.$ === 'AuthorMsg') {
-							switch (msg.a.$) {
-								case 'ChangeShareLevel':
-									var s = msg.a.a;
-									return $author$project$Main$InProgress(
-										_Utils_update(
-											m,
-											{share: s}));
-								case 'PublicationAction':
-									switch (msg.a.a.$) {
-										case 'SubmitForReview':
-											var _v5 = msg.a.a;
-											return $author$project$Main$InReview(
-												{collab: m.collab, connected: m.connected, review: $author$project$Main$Uncatagorized, share: m.share});
-										case 'SelfPublish':
-											var _v6 = msg.a.a;
-											return $author$project$Main$Published(
-												{collab: m.collab, connected: m.connected, publication: $author$project$Main$SelfPublished, share: m.share});
-										default:
-											break _v4$4;
-									}
-								case 'ConnectAction':
-									var ca = msg.a.a;
-									if (ca.$ === 'ConnectToGroup') {
-										return $author$project$Main$InProgress(
-											_Utils_update(
-												m,
-												{
-													connected: $author$project$Main$ConnectedToGroup($author$project$Main$Unconfirmed)
-												}));
-									} else {
-										return $author$project$Main$InProgress(
-											_Utils_update(
-												m,
-												{
-													connected: $author$project$Main$ConnectedToPortal($author$project$Main$Unconfirmed)
-												}));
-									}
-								default:
-									break _v4$4;
-							}
-						} else {
-							break _v4$4;
-						}
-					}
-					return model;
-				case 'InReview':
-					var m = model.a;
-					_v8$5:
-					while (true) {
-						if (msg.$ === 'AdminMsg') {
-							switch (msg.a.$) {
-								case 'RejectPublication':
-									var _v9 = msg.a;
-									return $author$project$Main$InProgress(
-										{collab: m.collab, connected: m.connected, share: m.share});
-								case 'AcceptPublication':
-									var ptype = msg.a.a;
-									return $author$project$Main$Published(
-										{collab: m.collab, connected: m.connected, publication: ptype, share: m.share});
-								case 'PutInRevision':
-									var _v10 = msg.a;
-									return $author$project$Main$InReview(
-										{collab: m.collab, connected: m.connected, review: $author$project$Main$Revision, share: m.share});
-								case 'PutInReview':
-									var _v11 = msg.a;
-									return $author$project$Main$InReview(
-										_Utils_update(
-											m,
-											{review: $author$project$Main$BeingReviewed}));
-								case 'AssignReviewer':
-									var _v12 = msg.a;
-									return $author$project$Main$InReview(
-										_Utils_update(
-											m,
-											{review: $author$project$Main$BeingReviewed}));
-								default:
-									break _v8$5;
-							}
-						} else {
-							break _v8$5;
-						}
-					}
-					return model;
-				default:
-					var m = model.a;
-					if ((msg.$ === 'AdminMsg') && (msg.a.$ === 'Unpublish')) {
-						var _v14 = msg.a;
-						return $author$project$Main$InProgress(
-							{collab: m.collab, connected: m.connected, share: m.share});
-					} else {
-						return model;
-					}
-			}
+			return {
+				current: newState,
+				history: A2(
+					$elm$core$List$cons,
+					_Utils_Tuple2(msg, visibility),
+					states.history)
+			};
 		}
 	});
 var $author$project$Main$AcceptConnection = {$: 'AcceptConnection'};
@@ -8488,6 +5419,15 @@ var $author$project$Main$btn = F2(
 	function (message, msg) {
 		return A2($author$project$Main$Button, message, msg);
 	});
+var $elm$json$Json$Encode$string = _Json_wrap;
+var $elm$html$Html$Attributes$stringProperty = F2(
+	function (key, string) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$string(string));
+	});
+var $elm$html$Html$Attributes$class = $elm$html$Html$Attributes$stringProperty('className');
 var $elm$html$Html$div = _VirtualDom_node('div');
 var $author$project$Main$Header = F2(
 	function (a, b) {
@@ -8511,6 +5451,9 @@ var $author$project$Main$hyper = F3(
 				{alt: alt, text: t, url: url});
 		}
 	});
+var $author$project$Main$list = function (listItems) {
+	return $author$project$Main$List(listItems);
+};
 var $author$project$Main$ChangeShareLevel = function (a) {
 	return {$: 'ChangeShareLevel', a: a};
 };
@@ -8523,6 +5466,15 @@ var $author$project$Main$SharePublic = {$: 'SharePublic'};
 var $author$project$Main$allShareLevels = _List_fromArray(
 	[$author$project$Main$Private, $author$project$Main$ShareInPortal, $author$project$Main$ShareInRC, $author$project$Main$SharePublic]);
 var $elm$html$Html$br = _VirtualDom_node('br');
+var $elm$json$Json$Encode$bool = _Json_wrap;
+var $elm$html$Html$Attributes$boolProperty = F2(
+	function (key, bool) {
+		return A2(
+			_VirtualDom_property,
+			key,
+			$elm$json$Json$Encode$bool(bool));
+	});
+var $elm$html$Html$Attributes$checked = $elm$html$Html$Attributes$boolProperty('checked');
 var $elm$core$List$append = F2(
 	function (xs, ys) {
 		if (!ys.b) {
@@ -8541,14 +5493,6 @@ var $elm$core$List$concatMap = F2(
 	});
 var $elm$html$Html$input = _VirtualDom_node('input');
 var $elm$html$Html$label = _VirtualDom_node('label');
-var $elm$json$Json$Encode$string = _Json_wrap;
-var $elm$html$Html$Attributes$stringProperty = F2(
-	function (key, string) {
-		return A2(
-			_VirtualDom_property,
-			key,
-			$elm$json$Json$Encode$string(string));
-	});
 var $elm$html$Html$Attributes$name = $elm$html$Html$Attributes$stringProperty('name');
 var $elm$virtual_dom$VirtualDom$Normal = function (a) {
 	return {$: 'Normal', a: a};
@@ -8612,7 +5556,9 @@ var $author$project$Main$optionsFromShare = function (share) {
 											$elm$html$Html$Attributes$name('share_level'),
 											$elm$html$Html$Attributes$type_('radio'),
 											$elm$html$Html$Attributes$value(
-											$author$project$Main$shareLevelToString(s))
+											$author$project$Main$shareLevelToString(s)),
+											$elm$html$Html$Attributes$checked(
+											_Utils_eq(s, share))
 										]),
 									_List_Nil),
 									elmFromShare(s)
@@ -8759,11 +5705,22 @@ var $author$project$Main$render = function (elm) {
 		case 'Button':
 			var message = elm.a;
 			var msg = elm.b;
+			var _class = function () {
+				switch (msg.$) {
+					case 'AuthorMsg':
+						return 'author';
+					case 'AdminMsg':
+						return 'admin';
+					default:
+						return '';
+				}
+			}();
 			return A2(
 				$elm$html$Html$button,
 				_List_fromArray(
 					[
-						$elm$html$Html$Events$onClick(msg)
+						$elm$html$Html$Events$onClick(msg),
+						$elm$html$Html$Attributes$class(_class)
 					]),
 				_List_fromArray(
 					[
@@ -8828,6 +5785,145 @@ var $author$project$Main$txt = function (t) {
 				$author$project$Main$p(t)
 			]));
 };
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
+var $author$project$Main$viewAcceptPublication = function (level) {
+	var rest = function () {
+		switch (level.$) {
+			case 'Internal':
+				return 'internal publication, only visible to portal users';
+			case 'Archive':
+				return 'archive, only visible to the portal admin';
+			case 'External':
+				return 'unlimited, which means fully public';
+			default:
+				return 'self-published through their profile, fully public but not related to the portal';
+		}
+	}();
+	return $author$project$Main$p(' accepted publication on the level of ' + rest);
+};
+var $author$project$Main$viewAdminAction = function (action) {
+	switch (action.$) {
+		case 'AcceptPublication':
+			var level = action.a;
+			return $author$project$Main$viewAcceptPublication(level);
+		case 'RejectPublication':
+			return $author$project$Main$p(' rejected the request for publication.');
+		case 'PutInRevision':
+			return $author$project$Main$p(' put the exposition in revision');
+		case 'PutInReview':
+			return $author$project$Main$p(' locked the exposition by putting it back in review');
+		case 'AssignReviewer':
+			return $author$project$Main$p(' assigned a reviewer to the submitted exposition');
+		case 'Unpublish':
+			return $author$project$Main$p(' unpublished the exposition');
+		case 'AcceptConnection':
+			return $author$project$Main$p(' accepted the connection to the portal');
+		default:
+			return $author$project$Main$p(' rejected the connection request');
+	}
+};
+var $author$project$Main$viewConnectAction = function (connect) {
+	if (connect.$ === 'ConnectToGroup') {
+		return $author$project$Main$p('requested connection to a group');
+	} else {
+		return $author$project$Main$p('requested connection to a portal');
+	}
+};
+var $author$project$Main$viewPubAction = function (action) {
+	switch (action.$) {
+		case 'SubmitForReview':
+			return $author$project$Main$p('submitted the eposition for review by a portal');
+		case 'Resubmit':
+			return $author$project$Main$p('resubmitted the exposition');
+		default:
+			return $author$project$Main$p('self-published the exposition');
+	}
+};
+var $author$project$Main$viewShareLevel = function (level) {
+	switch (level.$) {
+		case 'Private':
+			return $author$project$Main$p('changed the share settings to private');
+		case 'SharePublic':
+			return $author$project$Main$p('changed the share settings to public');
+		case 'ShareInPortal':
+			return $author$project$Main$p('changed the share settings to in portal');
+		default:
+			return $author$project$Main$p('changed the share settings to rc users');
+	}
+};
+var $author$project$Main$viewAuthorAction = function (action) {
+	switch (action.$) {
+		case 'ChangeShareLevel':
+			var level = action.a;
+			return $author$project$Main$viewShareLevel(level);
+		case 'PublicationAction':
+			var paction = action.a;
+			return $author$project$Main$viewPubAction(paction);
+		case 'ConnectAction':
+			var connectAction = action.a;
+			return $author$project$Main$viewConnectAction(connectAction);
+		case 'CreateExposition':
+			return $author$project$Main$p('created an exposition on their profile');
+		default:
+			return $author$project$Main$p('has deleted the exposition.');
+	}
+};
+var $author$project$Main$viewMsg = F2(
+	function (index, msg) {
+		switch (msg.$) {
+			case 'AuthorMsg':
+				var action = msg.a;
+				return $author$project$Main$par(
+					_List_fromArray(
+						[
+							$author$project$Main$p(
+							$elm$core$String$fromInt(index) + ' '),
+							$author$project$Main$p('The author '),
+							$author$project$Main$viewAuthorAction(action)
+						]));
+			case 'AdminMsg':
+				var action = msg.a;
+				return $author$project$Main$par(
+					_List_fromArray(
+						[
+							$author$project$Main$p(
+							$elm$core$String$fromInt(index) + ' '),
+							$author$project$Main$p('The portal admin '),
+							$author$project$Main$viewAdminAction(action)
+						]));
+			default:
+				return $author$project$Main$par(
+					_List_fromArray(
+						[
+							$author$project$Main$p(
+							$elm$core$String$fromInt(index) + ' '),
+							$author$project$Main$p('You have hit reset')
+						]));
+		}
+	});
+var $author$project$Main$viewHistory = function (lst) {
+	var content = $author$project$Main$list(
+		$elm$core$List$reverse(
+			A2(
+				$elm$core$List$indexedMap,
+				function (index) {
+					return A2(
+						$elm$core$Basics$composeR,
+						$elm$core$Tuple$first,
+						$author$project$Main$viewMsg(index));
+				},
+				$elm$core$List$reverse(lst))));
+	return $author$project$Main$renders(
+		_List_fromArray(
+			[
+				$author$project$Main$h('log of actions: '),
+				content
+			]));
+};
 var $author$project$Main$viewShare = function (sl) {
 	var tail = function () {
 		switch (sl.$) {
@@ -8848,19 +5944,20 @@ var $author$project$Main$viewShare = function (sl) {
 };
 var $author$project$Main$view = function (model) {
 	var status = function () {
-		switch (model.$) {
+		var _v0 = model.current;
+		switch (_v0.$) {
 			case 'NotExist':
 				return $author$project$Main$renders(
 					_List_fromArray(
 						[
-							$author$project$Main$txt('A user can create a new exposition by clicking: '),
+							$author$project$Main$txt('A user within your portal can create a new exposition by clicking: '),
 							A2(
 							$author$project$Main$btn,
 							$author$project$Main$txt('create exposition'),
 							$author$project$Main$AuthorMsg($author$project$Main$CreateExposition))
 						]));
 			case 'InProgress':
-				var m = model.a;
+				var m = _v0.a;
 				var shareBlock = $author$project$Main$block(
 					_List_fromArray(
 						[
@@ -8878,11 +5975,11 @@ var $author$project$Main$view = function (model) {
 							$author$project$Main$optionsFromShare(m.share)
 						]));
 				var request = function () {
-					var _v2 = m.connected;
-					switch (_v2.$) {
+					var _v3 = m.connected;
+					switch (_v3.$) {
 						case 'ConnectedToPortal':
-							if (_v2.a.$ === 'Unconfirmed') {
-								var _v3 = _v2.a;
+							if (_v3.a.$ === 'Unconfirmed') {
+								var _v4 = _v3.a;
 								return $author$project$Main$List(
 									_List_fromArray(
 										[
@@ -8896,15 +5993,15 @@ var $author$project$Main$view = function (model) {
 											$author$project$Main$AdminMsg($author$project$Main$RejectConnection))
 										]));
 							} else {
-								var _v5 = _v2.a;
+								var _v6 = _v3.a;
 								return A2(
 									$author$project$Main$btn,
 									$author$project$Main$txt('Portal admin may undo the connection'),
 									$author$project$Main$AdminMsg($author$project$Main$RejectConnection));
 							}
 						case 'ConnectedToGroup':
-							if (_v2.a.$ === 'Unconfirmed') {
-								var _v4 = _v2.a;
+							if (_v3.a.$ === 'Unconfirmed') {
+								var _v5 = _v3.a;
 								return $author$project$Main$List(
 									_List_fromArray(
 										[
@@ -8918,7 +6015,7 @@ var $author$project$Main$view = function (model) {
 											$author$project$Main$AdminMsg($author$project$Main$RejectConnection))
 										]));
 							} else {
-								var _v6 = _v2.a;
+								var _v7 = _v3.a;
 								return A2(
 									$author$project$Main$btn,
 									$author$project$Main$txt('Portal admin may undo the connection'),
@@ -8930,81 +6027,85 @@ var $author$project$Main$view = function (model) {
 				}();
 				var connectBlock = function () {
 					var _v1 = m.share;
-					switch (_v1.$) {
-						case 'Private':
+					if (_v1.$ === 'Private') {
+						return $author$project$Main$block(
+							_List_fromArray(
+								[
+									$author$project$Main$txt('Connection: '),
+									$author$project$Main$txt('private expositions cannot be connected')
+								]));
+					} else {
+						var _v2 = m.connected;
+						if (_v2.$ === 'NotConnected') {
 							return $author$project$Main$block(
 								_List_fromArray(
 									[
-										$author$project$Main$txt('Connection: '),
-										$author$project$Main$txt('expositions can be connected to portals or groups, but they have to be shared first.')
-									]));
-						case 'ShareInPortal':
-							return $author$project$Main$block(
-								_List_fromArray(
-									[
+										$author$project$Main$txt('To link the exposition to the portal, the author can: '),
+										$author$project$Main$br,
 										A2(
 										$author$project$Main$btn,
-										$author$project$Main$txt('connection to portal'),
+										$author$project$Main$txt('request connection to portal'),
 										$author$project$Main$AuthorMsg(
 											$author$project$Main$ConnectAction($author$project$Main$ConnectToPortal)))
 									]));
-						case 'SharePublic':
-							return $author$project$Main$block(
-								_List_fromArray(
-									[
-										A2(
-										$author$project$Main$btn,
-										$author$project$Main$txt('connection to portal'),
-										$author$project$Main$AuthorMsg(
-											$author$project$Main$ConnectAction($author$project$Main$ConnectToPortal)))
-									]));
-						default:
-							return $author$project$Main$block(
-								_List_fromArray(
-									[
-										A2(
-										$author$project$Main$btn,
-										$author$project$Main$txt('connection to portal'),
-										$author$project$Main$AuthorMsg(
-											$author$project$Main$ConnectAction($author$project$Main$ConnectToPortal)))
-									]));
+						} else {
+							return $author$project$Main$txt('');
+						}
 					}
 				}();
 				return $author$project$Main$renders(
 					_List_fromArray(
 						[
-							$author$project$Main$h('There is now an in progress exposition'),
-							$author$project$Main$txt('it currently exists in the authors profile but is not part of the portal yet.'),
+							$author$project$Main$h('exposition in progress'),
 							$author$project$Main$viewShare(m.share),
 							$author$project$Main$br,
 							shareBlock,
-							$author$project$Main$br,
-							$author$project$Main$txt('It is also possible to publish an exposition, which fixes the contents and registers a DOI.'),
-							A2(
-							$author$project$Main$btn,
-							$author$project$Main$txt('self-publish'),
-							$author$project$Main$AuthorMsg(
-								$author$project$Main$PublicationAction($author$project$Main$SelfPublish))),
-							A2(
-							$author$project$Main$btn,
-							$author$project$Main$txt('Submit to portal'),
-							$author$project$Main$AuthorMsg(
-								$author$project$Main$PublicationAction($author$project$Main$SubmitForReview))),
-							$author$project$Main$br,
 							connectBlock,
-							$author$project$Main$txt('admin may control request'),
-							request
+							request,
+							$author$project$Main$br,
+							$author$project$Main$par(
+							_List_fromArray(
+								[
+									$author$project$Main$p('Author may also choose to publish or submit the exposition')
+								])),
+							$author$project$Main$list(
+							_List_fromArray(
+								[
+									$author$project$Main$block(
+									_List_fromArray(
+										[
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('self-publish'),
+											$author$project$Main$AuthorMsg(
+												$author$project$Main$PublicationAction($author$project$Main$SelfPublish))),
+											$author$project$Main$txt('no peer review, creates a fixed reference immediately')
+										])),
+									$author$project$Main$block(
+									_List_fromArray(
+										[
+											A2(
+											$author$project$Main$btn,
+											$author$project$Main$txt('Submit to portal'),
+											$author$project$Main$AuthorMsg(
+												$author$project$Main$PublicationAction($author$project$Main$SubmitForReview))),
+											$author$project$Main$txt('submit the exposition to one of the portals for peer review')
+										]))
+								])),
+							$author$project$Main$br,
+							$author$project$Main$txt('admin may control request')
 						]));
 			case 'InReview':
-				var m = model.a;
+				var m = _v0.a;
 				var reviewActions = function () {
-					var _v8 = m.review;
-					switch (_v8.$) {
+					var _v10 = m.review;
+					switch (_v10.$) {
 						case 'Uncatagorized':
 							return $author$project$Main$block(
 								_List_fromArray(
 									[
-										$author$project$Main$txt('the exposition appears under \"Uncatagorized\"'),
+										$author$project$Main$txt('the exposition appears under \"Uncatagorized\", the admin can: '),
+										$author$project$Main$br,
 										A2(
 										$author$project$Main$btn,
 										$author$project$Main$txt('add a reviewer'),
@@ -9029,11 +6130,21 @@ var $author$project$Main$view = function (model) {
 								_List_fromArray(
 									[
 										$author$project$Main$txt('the exposition is now in review and can be seen by the reviewer'),
+										$author$project$Main$txt('the admin can:'),
+										$author$project$Main$br,
 										A2(
 										$author$project$Main$btn,
-										$author$project$Main$txt('put in revision'),
+										$author$project$Main$txt('put the exposition in revision'),
 										$author$project$Main$AdminMsg($author$project$Main$PutInRevision)),
-										$author$project$Main$txt('the admin can now accept this request'),
+										$author$project$Main$br,
+										$author$project$Main$par(
+										_List_fromArray(
+											[
+												$author$project$Main$p('when the review is finished, the admin may '),
+												$author$project$Main$b('accept'),
+												$author$project$Main$p(' the publication')
+											])),
+										$author$project$Main$br,
 										$author$project$Main$List(
 										_List_fromArray(
 											[
@@ -9064,22 +6175,27 @@ var $author$project$Main$view = function (model) {
 				return $author$project$Main$renders(
 					_List_fromArray(
 						[
-							$author$project$Main$h('the exposition is now in review.'),
+							$author$project$Main$h(
+							function () {
+								var _v8 = m.review;
+								switch (_v8.$) {
+									case 'BeingReviewed':
+										return 'In Review';
+									case 'Uncatagorized':
+										return 'In review, but no reviewers assigned';
+									default:
+										return 'In revision';
+								}
+							}()),
 							$author$project$Main$List(
 							_List_fromArray(
 								[
-									$author$project$Main$par(
-									_List_fromArray(
-										[
-											$author$project$Main$p('The portal admin has been notified and the exposition is listed in '),
-											$author$project$Main$b('reviewing')
-										])),
 									function () {
-									var _v7 = m.review;
-									if (_v7.$ === 'Revision') {
+									var _v9 = m.review;
+									if (_v9.$ === 'Revision') {
 										return $author$project$Main$txt('The exposition can be edited temporarily');
 									} else {
-										return $author$project$Main$txt('The exposition is in review and cannot be edited');
+										return $author$project$Main$txt('The exposition contents are locked');
 									}
 								}()
 								])),
@@ -9087,9 +6203,9 @@ var $author$project$Main$view = function (model) {
 							$author$project$Main$br
 						]));
 			default:
-				var m = model.a;
-				var _v9 = m.publication;
-				switch (_v9.$) {
+				var m = _v0.a;
+				var _v11 = m.publication;
+				switch (_v11.$) {
 					case 'SelfPublished':
 						return $author$project$Main$renders(
 							_List_fromArray(
@@ -9161,6 +6277,17 @@ var $author$project$Main$view = function (model) {
 				}
 		}
 	}();
+	var showSide = function (side) {
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('column')
+				]),
+			_List_fromArray(
+				[side]));
+	};
+	var rightSide = $author$project$Main$viewHistory(model.history);
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
@@ -9171,7 +6298,17 @@ var $author$project$Main$view = function (model) {
 					$author$project$Main$btn,
 					$author$project$Main$txt('reset all'),
 					$author$project$Main$Reset)),
-				status
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('container')
+					]),
+				A2(
+					$elm$core$List$map,
+					showSide,
+					_List_fromArray(
+						[status, rightSide])))
 			]));
 };
 var $author$project$Main$main = $elm$browser$Browser$sandbox(

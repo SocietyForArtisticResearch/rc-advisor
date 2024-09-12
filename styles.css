@@ -117,6 +117,14 @@ button {
     margin: 1em;
 }
 
+button.author {
+    background-color: lightblue;
+}
+
+button.admin {
+    background-color: lightgray;
+}
+
 button:hover {
     background-color: #c1c1c1;
 }
@@ -144,4 +152,13 @@ code {
     padding: 2px 4px;
     font-family: 'Courier New', Courier, monospace;
     border-radius: 3px;
+}
+
+.container {
+    display: flex;
+}
+
+.column { 
+    flex : 1 ;
+    padding: 10px;
 }

@@ -49,6 +49,7 @@ type Elm
     | Image { label : Elm, alt : String, url : String }
     | Text (List Span)
 
+
 image label alt url =
     Image
         { label = label
@@ -123,7 +124,19 @@ render elm =
             Html.br [] []
 
         Button message msg ->
-            Html.button [ onClick msg ] [ render message ]
+            let
+                class =
+                    case msg of
+                        AuthorMsg _ ->
+                            "author"
+
+                        AdminMsg _ ->
+                            "admin"
+
+                        _ ->
+                            ""
+            in
+            Html.button [ onClick msg, Attrs.class class ] [ render message ]
 
         Block lst ->
             Html.div [] <| List.map render lst
@@ -148,12 +161,11 @@ renderPar pr =
     Html.p []
         (pr
             |> List.map renderSpan
-                
-                )
-        
+        )
 
-renderSpan : Span -> Html Msg 
-renderSpan sp = 
+
+renderSpan : Span -> Html Msg
+renderSpan sp =
     case sp of
         P s ->
             Html.span [] [ Html.text s ]
@@ -166,6 +178,7 @@ renderSpan sp =
 
         L s ->
             Html.a [ Attrs.href s.url, Attrs.alt s.alt, Attrs.target "_blank" ] [ Html.text s.text ]
+
 
 renderImage : { label : Elm, alt : String, url : String } -> Html Msg
 renderImage props =
@@ -267,7 +280,9 @@ type Issue
 
 
 type alias Model =
-    Visibility
+    { current : ExpoStatus
+    , history : List ( Msg, ExpoStatus )
+    }
 
 
 type Collaboration
@@ -275,7 +290,7 @@ type Collaboration
     | Collborated
 
 
-type Visibility
+type ExpoStatus
     = NotExist
     | InProgress { share : ShareLevel, connected : ConnectionStatus, collab : Collaboration }
     | InReview { review : Review, share : ShareLevel, connected : ConnectionStatus, collab : Collaboration }
@@ -295,74 +310,105 @@ type Confirmation
 
 init : Model
 init =
-    NotExist
+    { current = NotExist, history = [] }
 
 
 update : Msg -> Model -> Model
-update msg model =
+update msg states =
+    let
+        visibility =
+            states.current
+
+        newState : ExpoStatus
+        newState =
+            case msg of
+                Reset ->
+                    NotExist
+
+                _ ->
+                    case visibility of
+                        NotExist ->
+                            case msg of
+                                AuthorMsg CreateExposition ->
+                                    InProgress { share = Private, connected = NotConnected, collab = NoCollab }
+
+                                _ ->
+                                    visibility
+
+                        InProgress m ->
+                            case msg of
+                                AuthorMsg (ChangeShareLevel s) ->
+                                    InProgress { m | share = s }
+
+                                AuthorMsg (PublicationAction SubmitForReview) ->
+                                    InReview { share = m.share, connected = m.connected, collab = m.collab, review = Uncatagorized }
+
+                                AuthorMsg (PublicationAction SelfPublish) ->
+                                    Published { share = m.share, connected = m.connected, collab = m.collab, publication = SelfPublished }
+
+                                AuthorMsg (ConnectAction ca) ->
+                                    case ca of
+                                        ConnectToGroup ->
+                                            InProgress { m | connected = ConnectedToGroup Unconfirmed }
+
+                                        ConnectToPortal ->
+                                            InProgress { m | connected = ConnectedToPortal Unconfirmed }
+
+                                AdminMsg AcceptConnection ->
+                                    InProgress
+                                        { m
+                                            | connected =
+                                                case m.connected of
+                                                    ConnectedToGroup _ ->
+                                                        ConnectedToGroup Confirmed
+
+                                                    ConnectedToPortal _ ->
+                                                        ConnectedToPortal Confirmed
+
+                                                    _ ->
+                                                        ConnectedToPortal Confirmed
+                                        }
+
+                                AdminMsg RejectConnection ->
+                                    InProgress { m | connected = NotConnected }
+
+                                _ ->
+                                    visibility
+
+                        InReview m ->
+                            case msg of
+                                AdminMsg RejectPublication ->
+                                    InProgress { share = m.share, connected = m.connected, collab = m.collab }
+
+                                AdminMsg (AcceptPublication ptype) ->
+                                    Published { collab = m.collab, connected = m.connected, publication = ptype, share = m.share }
+
+                                AdminMsg PutInRevision ->
+                                    InReview { review = Revision, share = m.share, connected = m.connected, collab = m.collab }
+
+                                AdminMsg PutInReview ->
+                                    InReview { m | review = BeingReviewed }
+
+                                AdminMsg AssignReviewer ->
+                                    InReview { m | review = BeingReviewed }
+
+                                _ ->
+                                    visibility
+
+                        Published m ->
+                            case msg of
+                                AdminMsg Unpublish ->
+                                    InProgress { share = m.share, connected = m.connected, collab = m.collab }
+
+                                _ ->
+                                    visibility
+    in
     case msg of
         Reset ->
             init
 
         _ ->
-            case model of
-                NotExist ->
-                    case msg of
-                        AuthorMsg CreateExposition ->
-                            InProgress { share = Private, connected = NotConnected, collab = NoCollab }
-
-                        _ ->
-                            model
-
-                InProgress m ->
-                    case msg of
-                        AuthorMsg (ChangeShareLevel s) ->
-                            InProgress { m | share = s }
-
-                        AuthorMsg (PublicationAction SubmitForReview) ->
-                            InReview { share = m.share, connected = m.connected, collab = m.collab, review = Uncatagorized }
-
-                        AuthorMsg (PublicationAction SelfPublish) ->
-                            Published { share = m.share, connected = m.connected, collab = m.collab, publication = SelfPublished }
-
-                        AuthorMsg (ConnectAction ca) ->
-                            case ca of
-                                ConnectToGroup ->
-                                    InProgress { m | connected = ConnectedToGroup Unconfirmed }
-
-                                ConnectToPortal ->
-                                    InProgress { m | connected = ConnectedToPortal Unconfirmed }
-
-                        _ ->
-                            model
-
-                InReview m ->
-                    case msg of
-                        AdminMsg RejectPublication ->
-                            InProgress { share = m.share, connected = m.connected, collab = m.collab }
-
-                        AdminMsg (AcceptPublication ptype) ->
-                            Published { collab = m.collab, connected = m.connected, publication = ptype, share = m.share }
-
-                        AdminMsg PutInRevision ->
-                            InReview { review = Revision, share = m.share, connected = m.connected, collab = m.collab }
-
-                        AdminMsg PutInReview ->
-                            InReview { m | review = BeingReviewed }
-
-                        AdminMsg AssignReviewer ->
-                            InReview { m | review = BeingReviewed }
-
-                        _ ->
-                            model
-
-                Published m ->
-                    case msg of
-                        AdminMsg Unpublish ->
-                            InProgress { share = m.share, connected = m.connected, collab = m.collab }
-
-                        _ ->
-                            model
+            { current = newState, history = ( msg, visibility ) :: states.history }
 
 
 viewShare : ShareLevel -> Elm
@@ -435,7 +481,7 @@ optionsFromShare share =
                 |> List.concatMap
                     (\s ->
                         [ Html.label []
-                            [ Html.input [ onClick (AuthorMsg (ChangeShareLevel s)), Attrs.name "share_level", Attrs.type_ "radio", Attrs.value (shareLevelToString s) ] []
+                            [ Html.input [ onClick (AuthorMsg (ChangeShareLevel s)), Attrs.name "share_level", Attrs.type_ "radio", Attrs.value (shareLevelToString s), Attrs.checked (s == share) ] []
                             , elmFromShare s
                             ]
                         , Html.br [] []
@@ -453,9 +499,9 @@ view : Model -> Html Msg
 view model =
     let
         status =
-            case model of
+            case model.current of
                 NotExist ->
-                    renders [ txt "A user can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
+                    renders [ txt "A user within your portal can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
 
                 InProgress m ->
                     let
@@ -465,17 +511,19 @@ view model =
                                 , optionsFromShare m.share
                                 ]
 
-                        request = 
+                        request =
                             case m.connected of
                                 ConnectedToPortal Unconfirmed ->
-                                    List [btn (txt "Portal admin may accept the connection") (AdminMsg (AcceptConnection))
+                                    List
+                                        [ btn (txt "Portal admin may accept the connection") (AdminMsg AcceptConnection)
+                                        , btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)
+                                        ]
 
-                                    ,btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)]
-
-                                ConnectedToGroup Unconfirmed -> 
-                                    List [btn (txt "Portal admin may accept the connection") (AdminMsg (AcceptConnection))
-
-                                    ,btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)]
+                                ConnectedToGroup Unconfirmed ->
+                                    List
+                                        [ btn (txt "Portal admin may accept the connection") (AdminMsg AcceptConnection)
+                                        , btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)
+                                        ]
 
                                 ConnectedToPortal Confirmed ->
                                     btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
@@ -483,37 +531,43 @@ view model =
                                 ConnectedToGroup Confirmed ->
                                     btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
 
-                                NotConnected -> 
+                                NotConnected ->
                                     txt ""
 
                         connectBlock =
                             case m.share of
                                 Private ->
-                                    block [ txt "Connection: ", txt "expositions can be connected to portals or groups, but they have to be shared first." ]
+                                    block [ txt "Connection: ", txt "private expositions cannot be connected" ]
 
-                                ShareInPortal ->
-                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
+                                _ ->
+                                    case m.connected of
+                                        NotConnected ->
+                                            block [ txt "To link the exposition to the portal, the author can: ", br, btn (txt "request connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
 
-                                SharePublic ->
-                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
-
-                                ShareInRC ->
-                                    block [ btn (txt "connection to portal") (AuthorMsg (ConnectAction ConnectToPortal)) ]
+                                        _ ->
+                                            txt ""
                     in
                     renders <|
-                        [ h "There is now an in progress exposition"
-                        , txt "it currently exists in the authors profile but is not part of the portal yet."
+                        [ h "exposition in progress"
                         , viewShare m.share
                         , br
                         , shareBlock
-                        , br
-                        , txt "It is also possible to publish an exposition, which fixes the contents and registers a DOI."
-                        , btn (txt "self-publish") (AuthorMsg (PublicationAction SelfPublish))
-                        , btn (txt "Submit to portal") (AuthorMsg (PublicationAction SubmitForReview))
-                        , br
                         , connectBlock
-                        , txt "admin may control request"
                         , request
+                        , br
+                        , par [ p "Author may also choose to publish or submit the exposition" ]
+                        , list
+                            [ block
+                                [ btn (txt "self-publish") (AuthorMsg (PublicationAction SelfPublish))
+                                , txt "no peer review, creates a fixed reference immediately"
+                                ]
+                            , block
+                                [ btn (txt "Submit to portal") (AuthorMsg (PublicationAction SubmitForReview))
+                                , txt "submit the exposition to one of the portals for peer review"
+                                ]
+                            ]
+                        , br
+                        , txt "admin may control request"
                         ]
 
                 InReview m ->
@@ -522,7 +576,8 @@ view model =
                             case m.review of
                                 Uncatagorized ->
                                     block
-                                        [ txt "the exposition appears under \"Uncatagorized\""
+                                        [ txt "the exposition appears under \"Uncatagorized\", the admin can: "
+                                        , br
                                         , btn (txt "add a reviewer") (AdminMsg AssignReviewer)
                                         , btn (txt "put in revision") (AdminMsg PutInRevision)
                                         ]
@@ -536,8 +591,12 @@ view model =
                                 BeingReviewed ->
                                     block
                                         [ txt "the exposition is now in review and can be seen by the reviewer"
-                                        , btn (txt "put in revision") (AdminMsg PutInRevision)
-                                        , txt "the admin can now accept this request"
+                                        , txt "the admin can:"
+                                        , br
+                                        , btn (txt "put the exposition in revision") (AdminMsg PutInRevision)
+                                        , br
+                                        , par [ p "when the review is finished, the admin may ", b "accept", p " the publication" ]
+                                        , br
                                         , List
                                             [ btn (txt "as an internal publication") (AdminMsg (AcceptPublication Internal))
                                             , btn (txt "as a worldwide publication") (AdminMsg (AcceptPublication External))
@@ -548,15 +607,23 @@ view model =
                                         ]
                     in
                     renders <|
-                        [ h "the exposition is now in review."
+                        [ h <|
+                            case m.review of
+                                BeingReviewed ->
+                                    "In Review"
+
+                                Uncatagorized ->
+                                    "In review, but no reviewers assigned"
+
+                                Revision ->
+                                    "In revision"
                         , List
-                            [ par [ p "The portal admin has been notified and the exposition is listed in ", b "reviewing" ]
-                            , case m.review of
+                            [case m.review of
                                 Revision ->
                                     txt "The exposition can be edited temporarily"
 
                                 _ ->
-                                    txt "The exposition is in review and cannot be edited"
+                                    txt "The exposition contents are locked"
                             ]
                         , reviewActions
                         , br
@@ -596,5 +663,141 @@ view model =
                                 , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
                                 , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
                                 ]
+
+        rightSide =
+            viewHistory model.history
+
+        showSide side =
+            Html.div [ Attrs.class "column" ] [ side ]
     in
-    Html.div [] [ render <| btn (txt "reset all") Reset, status ]
+    Html.div []
+        [ render <| btn (txt "reset all") Reset
+        , Html.div [ Attrs.class "container" ]
+            ([ status, rightSide ] |> List.map showSide)
+        ]
+
+
+viewHistory : List ( Msg, ExpoStatus ) -> Html Msg
+viewHistory lst =
+    let
+        content =
+            lst |> List.reverse |> List.indexedMap (\index -> Tuple.first >> viewMsg index) |> List.reverse |> list
+    in
+    [ h "log of actions: ", content ] |> renders
+
+
+viewMsg : Int -> Msg -> Elm
+viewMsg index msg =
+    case msg of
+        AuthorMsg action ->
+            par [ p (String.fromInt index ++ " "), p "The author ", viewAuthorAction action ]
+
+        AdminMsg action ->
+            par [ p (String.fromInt index ++ " "), p "The portal admin ", viewAdminAction action ]
+
+        Reset ->
+            par [ p (String.fromInt index ++ " "), p "You have hit reset" ]
+
+
+viewAuthorAction : AuthorAction -> Span
+viewAuthorAction action =
+    case action of
+        ChangeShareLevel level ->
+            viewShareLevel level
+
+        PublicationAction paction ->
+            viewPubAction paction
+
+        ConnectAction connectAction ->
+            viewConnectAction connectAction
+
+        CreateExposition ->
+            p "created an exposition on their profile"
+
+        DeleteExposition ->
+            p "has deleted the exposition."
+
+
+viewShareLevel : ShareLevel -> Span
+viewShareLevel level =
+    case level of
+        Private ->
+            p "changed the share settings to private"
+
+        SharePublic ->
+            p "changed the share settings to public"
+
+        ShareInPortal ->
+            p "changed the share settings to in portal"
+
+        ShareInRC ->
+            p "changed the share settings to rc users"
+
+
+viewPubAction : AuthorPublicationAction -> Span
+viewPubAction action =
+    case action of
+        SubmitForReview ->
+            p "submitted the eposition for review by a portal"
+
+        Resubmit ->
+            p "resubmitted the exposition"
+
+        SelfPublish ->
+            p "self-published the exposition"
+
+
+viewConnectAction : ConnectAction -> Span
+viewConnectAction connect =
+    case connect of
+        ConnectToGroup ->
+            p "requested connection to a group"
+
+        ConnectToPortal ->
+            p "requested connection to a portal"
+
+
+viewAdminAction action =
+    case action of
+        AcceptPublication level ->
+            viewAcceptPublication level
+
+        RejectPublication ->
+            p " rejected the request for publication."
+
+        PutInRevision ->
+            p " put the exposition in revision"
+
+        PutInReview ->
+            p " locked the exposition by putting it back in review"
+
+        AssignReviewer ->
+            p " assigned a reviewer to the submitted exposition"
+
+        Unpublish ->
+            p " unpublished the exposition"
+
+        AcceptConnection ->
+            p " accepted the connection to the portal"
+
+        RejectConnection ->
+            p " rejected the connection request"
+
+
+viewAcceptPublication level =
+    let
+        rest =
+            case level of
+                Internal ->
+                    "internal publication, only visible to portal users"
+
+                Archive ->
+                    "archive, only visible to the portal admin"
+
+                External ->
+                    "unlimited, which means fully public"
+
+                SelfPublished ->
+                    "self-published through their profile, fully public but not related to the portal"
+    in
+    p (" accepted publication on the level of " ++ rest)
