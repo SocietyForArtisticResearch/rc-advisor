@@ -5218,23 +5218,43 @@ var $author$project$Main$update = F2(
 						if ((msg.$ === 'AuthorMsg') && (msg.a.$ === 'CreateExposition')) {
 							var _v4 = msg.a;
 							return $author$project$Main$InProgress(
-								{collab: $author$project$Main$NoCollab, connected: $author$project$Main$NotConnected, share: $author$project$Main$Private});
+								{
+									collab: $author$project$Main$NoCollab,
+									connected: $author$project$Main$NotConnected,
+									share: {level: $author$project$Main$Private, secretlink: false}
+								});
 						} else {
 							return visibility;
 						}
 					case 'InProgress':
 						var m = visibility.a;
-						_v5$6:
+						_v5$7:
 						while (true) {
 							switch (msg.$) {
 								case 'AuthorMsg':
 									switch (msg.a.$) {
 										case 'ChangeShareLevel':
 											var s = msg.a.a;
+											var share = m.share;
 											return $author$project$Main$InProgress(
 												_Utils_update(
 													m,
-													{share: s}));
+													{
+														share: _Utils_update(
+															share,
+															{level: s})
+													}));
+										case 'ChangeSecretLink':
+											var bool = msg.a.a;
+											var share = m.share;
+											return $author$project$Main$InProgress(
+												_Utils_update(
+													m,
+													{
+														share: _Utils_update(
+															share,
+															{secretlink: bool})
+													}));
 										case 'PublicationAction':
 											switch (msg.a.a.$) {
 												case 'SubmitForReview':
@@ -5246,7 +5266,7 @@ var $author$project$Main$update = F2(
 													return $author$project$Main$Published(
 														{collab: m.collab, connected: m.connected, publication: $author$project$Main$SelfPublished, share: m.share});
 												default:
-													break _v5$6;
+													break _v5$7;
 											}
 										case 'ConnectAction':
 											var ca = msg.a.a;
@@ -5266,7 +5286,7 @@ var $author$project$Main$update = F2(
 														}));
 											}
 										default:
-											break _v5$6;
+											break _v5$7;
 									}
 								case 'AdminMsg':
 									switch (msg.a.$) {
@@ -5295,10 +5315,10 @@ var $author$project$Main$update = F2(
 													m,
 													{connected: $author$project$Main$NotConnected}));
 										default:
-											break _v5$6;
+											break _v5$7;
 									}
 								default:
-									break _v5$6;
+									break _v5$7;
 							}
 						}
 						return visibility;
@@ -5376,6 +5396,9 @@ var $author$project$Main$AssignReviewer = {$: 'AssignReviewer'};
 var $author$project$Main$AuthorMsg = function (a) {
 	return {$: 'AuthorMsg', a: a};
 };
+var $author$project$Main$ChangeSecretLink = function (a) {
+	return {$: 'ChangeSecretLink', a: a};
+};
 var $author$project$Main$ConnectAction = function (a) {
 	return {$: 'ConnectAction', a: a};
 };
@@ -5441,19 +5464,25 @@ var $author$project$Main$L = function (a) {
 	return {$: 'L', a: a};
 };
 var $author$project$Main$hyper = F3(
-	function (url, text, alt) {
+	function (url, text, title) {
 		if (text.$ === 'Nothing') {
 			return $author$project$Main$L(
-				{alt: alt, text: url, url: url});
+				{text: url, title: title, url: url});
 		} else {
 			var t = text.a;
 			return $author$project$Main$L(
-				{alt: alt, text: t, url: url});
+				{text: t, title: title, url: url});
 		}
 	});
+var $author$project$Main$SharePublic = {$: 'SharePublic'};
+var $elm$core$Basics$neq = _Utils_notEqual;
+var $author$project$Main$isNotPublic = function (level) {
+	return !_Utils_eq(level, $author$project$Main$SharePublic);
+};
 var $author$project$Main$list = function (listItems) {
 	return $author$project$Main$List(listItems);
 };
+var $elm$core$Basics$not = _Basics_not;
 var $author$project$Main$ChangeShareLevel = function (a) {
 	return {$: 'ChangeShareLevel', a: a};
 };
@@ -5462,7 +5491,6 @@ var $author$project$Main$Escape = function (a) {
 };
 var $author$project$Main$ShareInPortal = {$: 'ShareInPortal'};
 var $author$project$Main$ShareInRC = {$: 'ShareInRC'};
-var $author$project$Main$SharePublic = {$: 'SharePublic'};
 var $author$project$Main$allShareLevels = _List_fromArray(
 	[$author$project$Main$Private, $author$project$Main$ShareInPortal, $author$project$Main$ShareInRC, $author$project$Main$SharePublic]);
 var $elm$html$Html$br = _VirtualDom_node('br');
@@ -5600,6 +5628,7 @@ var $elm$html$Html$Attributes$href = function (url) {
 var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $elm$html$Html$Attributes$target = $elm$html$Html$Attributes$stringProperty('target');
+var $elm$html$Html$Attributes$title = $elm$html$Html$Attributes$stringProperty('title');
 var $author$project$Main$renderSpan = function (sp) {
 	switch (sp.$) {
 		case 'P':
@@ -5636,7 +5665,7 @@ var $author$project$Main$renderSpan = function (sp) {
 				_List_fromArray(
 					[
 						$elm$html$Html$Attributes$href(s.url),
-						$elm$html$Html$Attributes$alt(s.alt),
+						$elm$html$Html$Attributes$title(s.title),
 						$elm$html$Html$Attributes$target('_blank')
 					]),
 				_List_fromArray(
@@ -5738,12 +5767,17 @@ var $author$project$Main$render = function (elm) {
 		case 'Image':
 			var props = elm.a;
 			return $author$project$Main$renderImage(props);
-		default:
+		case 'Text':
 			var spans = elm.a;
 			return A2(
 				$elm$html$Html$label,
 				_List_Nil,
 				A2($elm$core$List$map, $author$project$Main$renderSpan, spans));
+		default:
+			var state = elm.a;
+			var e = elm.b;
+			var msg = elm.c;
+			return A3($author$project$Main$renderToggle, state, e, msg);
 	}
 };
 var $author$project$Main$renderImage = function (props) {
@@ -5769,12 +5803,42 @@ var $author$project$Main$renderImage = function (props) {
 					]))
 			]));
 };
+var $author$project$Main$renderToggle = F3(
+	function (state, label, msg) {
+		return A2(
+			$elm$html$Html$label,
+			_List_fromArray(
+				[
+					$elm$html$Html$Events$onClick(msg)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$input,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$type_('checkbox'),
+							$elm$html$Html$Events$onClick(msg),
+							$elm$html$Html$Attributes$checked(state)
+						]),
+					_List_Nil),
+					$author$project$Main$render(label)
+				]));
+	});
 var $author$project$Main$renders = function (elms) {
 	return A2(
 		$elm$html$Html$div,
 		_List_Nil,
 		A2($elm$core$List$map, $author$project$Main$render, elms));
 };
+var $author$project$Main$Toggle = F3(
+	function (a, b, c) {
+		return {$: 'Toggle', a: a, b: b, c: c};
+	});
+var $author$project$Main$toggle = F3(
+	function (state, e, msg) {
+		return A3($author$project$Main$Toggle, state, e, msg);
+	});
 var $author$project$Main$Text = function (a) {
 	return {$: 'Text', a: a};
 };
@@ -5843,6 +5907,9 @@ var $author$project$Main$viewPubAction = function (action) {
 			return $author$project$Main$p('self-published the exposition');
 	}
 };
+var $author$project$Main$viewSecretLinkState = function (bool) {
+	return bool ? $author$project$Main$p('has enabled the secret share link') : $author$project$Main$p('has disabled the secret share link');
+};
 var $author$project$Main$viewShareLevel = function (level) {
 	switch (level.$) {
 		case 'Private':
@@ -5860,6 +5927,9 @@ var $author$project$Main$viewAuthorAction = function (action) {
 		case 'ChangeShareLevel':
 			var level = action.a;
 			return $author$project$Main$viewShareLevel(level);
+		case 'ChangeSecretLink':
+			var bool = action.a;
+			return $author$project$Main$viewSecretLinkState(bool);
 		case 'PublicationAction':
 			var paction = action.a;
 			return $author$project$Main$viewPubAction(paction);
@@ -5924,7 +5994,8 @@ var $author$project$Main$viewHistory = function (lst) {
 				content
 			]));
 };
-var $author$project$Main$viewShare = function (sl) {
+var $author$project$Main$viewShare = function (sharestate) {
+	var sl = sharestate.level;
 	var tail = function () {
 		switch (sl.$) {
 			case 'Private':
@@ -5937,10 +6008,16 @@ var $author$project$Main$viewShare = function (sl) {
 				return $author$project$Main$p('registered users in RC');
 		}
 	}();
+	var linkstate = sharestate.secretlink ? $author$project$Main$txt('secret link on: the work can be seen by people with the link') : $author$project$Main$txt('secret link off');
 	var head = $author$project$Main$p('The exposition is visible for: ');
-	return $author$project$Main$par(
+	return $author$project$Main$block(
 		_List_fromArray(
-			[head, tail]));
+			[
+				$author$project$Main$par(
+				_List_fromArray(
+					[head, tail])),
+				linkstate
+			]));
 };
 var $author$project$Main$view = function (model) {
 	var status = function () {
@@ -5951,7 +6028,17 @@ var $author$project$Main$view = function (model) {
 					_List_fromArray(
 						[
 							$author$project$Main$h('RC advisor beta version 0.1'),
-							$author$project$Main$txt('A user within your portal can create a new exposition by clicking: '),
+							$author$project$Main$par(
+							_List_fromArray(
+								[
+									$author$project$Main$p('A user within your portal can '),
+									A3(
+									$author$project$Main$hyper,
+									'https://guide.researchcatalogue.net/#creating-expositions',
+									$elm$core$Maybe$Just('create a new exposition'),
+									'help: how to create an exposition'),
+									$author$project$Main$p(' by clicking: ')
+								])),
 							A2(
 							$author$project$Main$btn,
 							$author$project$Main$txt('create exposition'),
@@ -5959,6 +6046,8 @@ var $author$project$Main$view = function (model) {
 						]));
 			case 'InProgress':
 				var m = _v0.a;
+				var sharestate = m.share;
+				var secretlinkstate = sharestate.secretlink;
 				var shareBlock = $author$project$Main$block(
 					_List_fromArray(
 						[
@@ -5973,7 +6062,13 @@ var $author$project$Main$view = function (model) {
 									'rc documentation'),
 									$author$project$Main$p(' it:')
 								])),
-							$author$project$Main$optionsFromShare(m.share)
+							$author$project$Main$optionsFromShare(sharestate.level),
+							$author$project$Main$isNotPublic(sharestate.level) ? A3(
+							$author$project$Main$toggle,
+							secretlinkstate,
+							$author$project$Main$txt('secret link'),
+							$author$project$Main$AuthorMsg(
+								$author$project$Main$ChangeSecretLink(!secretlinkstate))) : $author$project$Main$txt('')
 						]));
 				var request = function () {
 					var _v3 = m.connected;
@@ -6027,7 +6122,7 @@ var $author$project$Main$view = function (model) {
 					}
 				}();
 				var connectBlock = function () {
-					var _v1 = m.share;
+					var _v1 = m.share.level;
 					if (_v1.$ === 'Private') {
 						return $author$project$Main$block(
 							_List_fromArray(

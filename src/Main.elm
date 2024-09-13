@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, button, div, text)
+import Html exposing (Html, br, button, div, text)
 import Html.Attributes as Attrs exposing (accept)
 import Html.Events exposing (onClick)
 import List exposing (all)
@@ -29,6 +29,10 @@ type ShareLevel
     | ShareInRC
 
 
+type alias ShareState =
+    { level : ShareLevel, secretlink : Bool }
+
+
 type LevelHeader
     = MainHeader
     | SubHeader
@@ -44,6 +48,7 @@ type Elm
     | List (List Elm)
     | Br
     | Button Elm Msg
+    | Toggle Bool Elm Msg
     | Block (List Elm)
     | Escape (Html Msg)
     | Image { label : Elm, alt : String, url : String }
@@ -74,20 +79,25 @@ list listItems =
 
 
 hyper : String -> Maybe String -> String -> Span
-hyper url text alt =
+hyper url text title =
     case text of
         Nothing ->
-            L { url = url, text = url, alt = alt }
+            L { url = url, text = url, title = title }
 
         Just t ->
-            L { url = url, text = t, alt = alt }
+            L { url = url, text = t, title = title }
+
+
+toggle : Bool -> Elm -> Msg -> Elm
+toggle state e msg =
+    Toggle state e msg
 
 
 type Span
     = P String
     | I String
     | B String
-    | L { url : String, text : String, alt : String }
+    | L { url : String, text : String, title : String }
 
 
 
@@ -150,6 +160,9 @@ render elm =
         Text spans ->
             Html.label [] (List.map renderSpan spans)
 
+        Toggle state e msg ->
+            renderToggle state e msg
+
 
 renders : List Elm -> Html Msg
 renders elms =
@@ -177,7 +190,7 @@ renderSpan sp =
             Html.strong [] [ Html.text s ]
 
         L s ->
-            Html.a [ Attrs.href s.url, Attrs.alt s.alt, Attrs.target "_blank" ] [ Html.text s.text ]
+            Html.a [ Attrs.href s.url, Attrs.title s.title, Attrs.target "_blank" ] [ Html.text s.text ]
 
 
 renderImage : { label : Elm, alt : String, url : String } -> Html Msg
@@ -245,6 +258,7 @@ type Msg
 
 type AuthorAction
     = ChangeShareLevel ShareLevel
+    | ChangeSecretLink Bool
     | PublicationAction AuthorPublicationAction
     | ConnectAction ConnectAction
     | CreateExposition
@@ -292,9 +306,9 @@ type Collaboration
 
 type ExpoStatus
     = NotExist
-    | InProgress { share : ShareLevel, connected : ConnectionStatus, collab : Collaboration }
-    | InReview { review : Review, share : ShareLevel, connected : ConnectionStatus, collab : Collaboration }
-    | Published { collab : Collaboration, share : ShareLevel, publication : PublicationType, connected : ConnectionStatus }
+    | InProgress { share : ShareState, connected : ConnectionStatus, collab : Collaboration }
+    | InReview { review : Review, share : ShareState, connected : ConnectionStatus, collab : Collaboration }
+    | Published { collab : Collaboration, share : ShareState, publication : PublicationType, connected : ConnectionStatus }
 
 
 type ConnectionStatus
@@ -330,7 +344,7 @@ update msg states =
                         NotExist ->
                             case msg of
                                 AuthorMsg CreateExposition ->
-                                    InProgress { share = Private, connected = NotConnected, collab = NoCollab }
+                                    InProgress { share = { level = Private, secretlink = False }, connected = NotConnected, collab = NoCollab }
 
                                 _ ->
                                     visibility
@@ -338,7 +352,18 @@ update msg states =
                         InProgress m ->
                             case msg of
                                 AuthorMsg (ChangeShareLevel s) ->
-                                    InProgress { m | share = s }
+                                    let
+                                        share =
+                                            m.share
+                                    in
+                                    InProgress { m | share = { share | level = s } }
+
+                                AuthorMsg (ChangeSecretLink bool) ->
+                                    let
+                                        share =
+                                            m.share
+                                    in
+                                    InProgress { m | share = { share | secretlink = bool } }
 
                                 AuthorMsg (PublicationAction SubmitForReview) ->
                                     InReview { share = m.share, connected = m.connected, collab = m.collab, review = Uncatagorized }
@@ -411,9 +436,12 @@ update msg states =
             { current = newState, history = ( msg, visibility ) :: states.history }
 
 
-viewShare : ShareLevel -> Elm
-viewShare sl =
+viewShare : ShareState -> Elm
+viewShare sharestate =
     let
+        sl =
+            sharestate.level
+
         head =
             p "The exposition is visible for: "
 
@@ -430,8 +458,18 @@ viewShare sl =
 
                 ShareInRC ->
                     p "registered users in RC"
+
+        linkstate =
+            if sharestate.secretlink then
+                txt "secret link on: the work can be seen by people with the link"
+
+            else
+                txt "secret link off"
     in
-    par [ head, tail ]
+    block
+        [ par [ head, tail ]
+        , linkstate
+        ]
 
 
 renderRadio : List ( Elm, Msg ) -> Html Msg
@@ -443,6 +481,14 @@ renderRadio lst =
                     Html.option [ onClick msg ] [ render e ]
                 )
         )
+
+
+renderToggle : Bool -> Elm -> Msg -> Html Msg
+renderToggle state label msg =
+    Html.label [ Html.Events.onClick msg ]
+        [ Html.input [ Attrs.type_ "checkbox", Html.Events.onClick msg, Attrs.checked state ] []
+        , render label
+        ]
 
 
 
@@ -491,9 +537,14 @@ optionsFromShare share =
         )
 
 
+allShareLevels : List ShareLevel
 allShareLevels =
     [ Private, ShareInPortal, ShareInRC, SharePublic ]
 
+
+isNotPublic : ShareLevel -> Bool
+isNotPublic level = 
+    level /= SharePublic 
 
 view : Model -> Html Msg
 view model =
@@ -501,14 +552,33 @@ view model =
         status =
             case model.current of
                 NotExist ->
-                    renders [ h "RC advisor beta version 0.1", txt "A user within your portal can create a new exposition by clicking: ", btn (txt "create exposition") (AuthorMsg CreateExposition) ]
+                    renders
+                        [ h "RC advisor beta version 0.1"
+                        , par
+                            [ p "A user within your portal can "
+                            , hyper "https://guide.researchcatalogue.net/#creating-expositions" (Just "create a new exposition") "help: how to create an exposition"
+                            , p " by clicking: "
+                            ]
+                        , btn (txt "create exposition") (AuthorMsg CreateExposition)
+                        ]
 
                 InProgress m ->
                     let
+                        sharestate =
+                            m.share
+
+                        secretlinkstate =
+                            sharestate.secretlink
+
                         shareBlock =
                             block
                                 [ par [ p "The author can now choose to change the visibility by ", hyper "https://guide.researchcatalogue.net/#share" (Just "sharing") "rc documentation", p " it:" ]
-                                , optionsFromShare m.share
+                                , optionsFromShare
+                                    sharestate.level
+                                , if isNotPublic sharestate.level then 
+                                    toggle secretlinkstate (txt "secret link") (AuthorMsg (ChangeSecretLink (not secretlinkstate)))
+                                else 
+                                    txt ""
                                 ]
 
                         request =
@@ -535,7 +605,7 @@ view model =
                                     txt ""
 
                         connectBlock =
-                            case m.share of
+                            case m.share.level of
                                 Private ->
                                     block [ txt "Connection: ", txt "private expositions cannot be connected" ]
 
@@ -618,7 +688,7 @@ view model =
                                 Revision ->
                                     "In revision"
                         , List
-                            [case m.review of
+                            [ case m.review of
                                 Revision ->
                                     txt "The exposition can be edited temporarily"
 
@@ -705,6 +775,9 @@ viewAuthorAction action =
         ChangeShareLevel level ->
             viewShareLevel level
 
+        ChangeSecretLink bool ->
+            viewSecretLinkState bool
+
         PublicationAction paction ->
             viewPubAction paction
 
@@ -732,6 +805,15 @@ viewShareLevel level =
 
         ShareInRC ->
             p "changed the share settings to rc users"
+
+
+viewSecretLinkState : Bool -> Span
+viewSecretLinkState bool =
+    if bool then
+        p "has enabled the secret share link"
+
+    else
+        p "has disabled the secret share link"
 
 
 viewPubAction : AuthorPublicationAction -> Span
