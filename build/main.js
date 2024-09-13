@@ -5475,9 +5475,8 @@ var $author$project$Main$hyper = F3(
 		}
 	});
 var $author$project$Main$SharePublic = {$: 'SharePublic'};
-var $elm$core$Basics$neq = _Utils_notEqual;
-var $author$project$Main$isNotPublic = function (level) {
-	return !_Utils_eq(level, $author$project$Main$SharePublic);
+var $author$project$Main$isPublic = function (level) {
+	return _Utils_eq(level, $author$project$Main$SharePublic);
 };
 var $author$project$Main$list = function (listItems) {
 	return $author$project$Main$List(listItems);
@@ -5999,25 +5998,19 @@ var $author$project$Main$viewShare = function (sharestate) {
 	var tail = function () {
 		switch (sl.$) {
 			case 'Private':
-				return $author$project$Main$p('authors and collaborators');
+				return $author$project$Main$p('private to the author and collaborators');
 			case 'ShareInPortal':
-				return $author$project$Main$p('users that are members of the portal');
+				return $author$project$Main$p('portal members');
 			case 'SharePublic':
-				return $author$project$Main$p('to all');
+				return $author$project$Main$p('everybody');
 			default:
 				return $author$project$Main$p('registered users in RC');
 		}
 	}();
-	var linkstate = sharestate.secretlink ? $author$project$Main$txt('secret link on: the work can be seen by people with the link') : $author$project$Main$txt('secret link off');
-	var head = $author$project$Main$p('The exposition is visible for: ');
-	return $author$project$Main$block(
+	var head = $author$project$Main$p('The exposition has been shared with: ');
+	return $author$project$Main$par(
 		_List_fromArray(
-			[
-				$author$project$Main$par(
-				_List_fromArray(
-					[head, tail])),
-				linkstate
-			]));
+			[head, tail]));
 };
 var $author$project$Main$view = function (model) {
 	var status = function () {
@@ -6047,7 +6040,6 @@ var $author$project$Main$view = function (model) {
 			case 'InProgress':
 				var m = _v0.a;
 				var sharestate = m.share;
-				var secretlinkstate = sharestate.secretlink;
 				var shareBlock = $author$project$Main$block(
 					_List_fromArray(
 						[
@@ -6062,14 +6054,34 @@ var $author$project$Main$view = function (model) {
 									'rc documentation'),
 									$author$project$Main$p(' it:')
 								])),
-							$author$project$Main$optionsFromShare(sharestate.level),
-							$author$project$Main$isNotPublic(sharestate.level) ? A3(
+							$author$project$Main$optionsFromShare(sharestate.level)
+						]));
+				var secretlinkstate = sharestate.secretlink;
+				var secretLinkState = sharestate.secretlink ? $author$project$Main$par(
+					_List_fromArray(
+						[
+							$author$project$Main$p('secret link on: the work can be seen by people with the link')
+						])) : $author$project$Main$par(
+					_List_fromArray(
+						[
+							$author$project$Main$p('secret link off')
+						]));
+				var secretLinkCheckbox = ($author$project$Main$isPublic(sharestate.level) && secretlinkstate) ? $author$project$Main$block(
+					_List_fromArray(
+						[
+							A3(
 							$author$project$Main$toggle,
 							secretlinkstate,
 							$author$project$Main$txt('secret link'),
 							$author$project$Main$AuthorMsg(
-								$author$project$Main$ChangeSecretLink(!secretlinkstate))) : $author$project$Main$txt('')
-						]));
+								$author$project$Main$ChangeSecretLink(!secretlinkstate))),
+							$author$project$Main$txt(' secret link (still works, even while public!)')
+						])) : A3(
+					$author$project$Main$toggle,
+					secretlinkstate,
+					$author$project$Main$txt('secret link'),
+					$author$project$Main$AuthorMsg(
+						$author$project$Main$ChangeSecretLink(!secretlinkstate)));
 				var request = function () {
 					var _v3 = m.connected;
 					switch (_v3.$) {
@@ -6153,9 +6165,11 @@ var $author$project$Main$view = function (model) {
 					_List_fromArray(
 						[
 							$author$project$Main$h('exposition in progress'),
-							$author$project$Main$viewShare(m.share),
 							$author$project$Main$br,
 							shareBlock,
+							$author$project$Main$viewShare(m.share),
+							secretLinkCheckbox,
+							secretLinkState,
 							connectBlock,
 							request,
 							$author$project$Main$br,

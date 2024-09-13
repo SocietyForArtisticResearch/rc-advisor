@@ -443,33 +443,23 @@ viewShare sharestate =
             sharestate.level
 
         head =
-            p "The exposition is visible for: "
+            p "The exposition has been shared with: "
 
         tail =
             case sl of
                 Private ->
-                    p "authors and collaborators"
+                    p "private to the author and collaborators"
 
                 ShareInPortal ->
-                    p "users that are members of the portal"
+                    p "portal members"
 
                 SharePublic ->
-                    p "to all"
+                    p "everybody"
 
                 ShareInRC ->
                     p "registered users in RC"
-
-        linkstate =
-            if sharestate.secretlink then
-                txt "secret link on: the work can be seen by people with the link"
-
-            else
-                txt "secret link off"
     in
-    block
-        [ par [ head, tail ]
-        , linkstate
-        ]
+    par [ head, tail ]
 
 
 renderRadio : List ( Elm, Msg ) -> Html Msg
@@ -542,9 +532,10 @@ allShareLevels =
     [ Private, ShareInPortal, ShareInRC, SharePublic ]
 
 
-isNotPublic : ShareLevel -> Bool
-isNotPublic level = 
-    level /= SharePublic 
+isPublic : ShareLevel -> Bool
+isPublic level =
+    level == SharePublic
+
 
 view : Model -> Html Msg
 view model =
@@ -575,11 +566,24 @@ view model =
                                 [ par [ p "The author can now choose to change the visibility by ", hyper "https://guide.researchcatalogue.net/#share" (Just "sharing") "rc documentation", p " it:" ]
                                 , optionsFromShare
                                     sharestate.level
-                                , if isNotPublic sharestate.level then 
-                                    toggle secretlinkstate (txt "secret link") (AuthorMsg (ChangeSecretLink (not secretlinkstate)))
-                                else 
-                                    txt ""
                                 ]
+
+                        secretLinkCheckbox =
+                            if isPublic sharestate.level && secretlinkstate then
+                                block
+                                    [ toggle secretlinkstate (txt "secret link") (AuthorMsg (ChangeSecretLink (not secretlinkstate)))
+                                    , txt " secret link (still works, even while public!)"
+                                    ]
+
+                            else
+                                toggle secretlinkstate (txt "secret link") (AuthorMsg (ChangeSecretLink (not secretlinkstate)))
+
+                        secretLinkState =
+                            if sharestate.secretlink then
+                                par [ p "secret link on: the work can be seen by people with the link" ]
+
+                            else
+                                par [ p "secret link off" ]
 
                         request =
                             case m.connected of
@@ -619,9 +623,11 @@ view model =
                     in
                     renders <|
                         [ h "exposition in progress"
-                        , viewShare m.share
                         , br
                         , shareBlock
+                        , viewShare m.share
+                        , secretLinkCheckbox
+                        , secretLinkState
                         , connectBlock
                         , request
                         , br
