@@ -2,7 +2,7 @@ module Main exposing (..)
 
 import Browser
 import Html exposing (Html, br, button, div, text)
-import Html.Attributes as Attrs exposing (accept)
+import Html.Attributes as Attrs exposing (accept, class)
 import Html.Events exposing (onClick)
 import List exposing (all)
 
@@ -149,7 +149,7 @@ render elm =
             Html.button [ onClick msg, Attrs.class class ] [ render message ]
 
         Block lst ->
-            Html.div [] <| List.map render lst
+            renderBlock lst
 
         Escape html ->
             html
@@ -163,6 +163,10 @@ render elm =
         Toggle state e msg ->
             renderToggle state e msg
 
+
+renderBlock : List Elm -> Html Msg 
+renderBlock lst = 
+    Html.div [ class "block" ] <| List.map render lst
 
 renders : List Elm -> Html Msg
 renders elms =
@@ -740,16 +744,21 @@ view model =
                                 , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
                                 ]
 
-        rightSide =
+        bottom =
             viewHistory model.history
 
         showSide side =
             Html.div [ Attrs.class "column" ] [ side ]
+
+        middle = 
+            render (h "Status ")
     in
     Html.div []
         [ render <| btn (txt "reset all") Reset
         , Html.div [ Attrs.class "container" ]
-            ([ status, rightSide ] |> List.map showSide)
+            ([ status, middle ] |> List.map showSide)
+        , Html.div [ Attrs.class "container" ] 
+            ([ bottom ])
         ]
 
 
