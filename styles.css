@@ -69,6 +69,7 @@ ul, ol {
 
 li {
     margin-bottom: 10px;
+    list-style-type:none;
 }
 
 /* Tables */

@@ -164,9 +164,10 @@ render elm =
             renderToggle state e msg
 
 
-renderBlock : List Elm -> Html Msg 
-renderBlock lst = 
+renderBlock : List Elm -> Html Msg
+renderBlock lst =
     Html.div [ class "block" ] <| List.map render lst
+
 
 renders : List Elm -> Html Msg
 renders elms =
@@ -544,10 +545,10 @@ isPublic level =
 view : Model -> Html Msg
 view model =
     let
-        status =
+        ( actions, state ) =
             case model.current of
                 NotExist ->
-                    renders
+                    ( renders
                         [ h "RC advisor beta version 0.1"
                         , par
                             [ p "A user within your portal can "
@@ -556,6 +557,8 @@ view model =
                             ]
                         , btn (txt "create exposition") (AuthorMsg CreateExposition)
                         ]
+                    , render (txt "empty portal")
+                    )
 
                 InProgress m ->
                     let
@@ -593,21 +596,21 @@ view model =
                             case m.connected of
                                 ConnectedToPortal Unconfirmed ->
                                     List
-                                        [ btn (txt "Portal admin may accept the connection") (AdminMsg AcceptConnection)
-                                        , btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)
+                                        [ btn (txt "accept the connection") (AdminMsg AcceptConnection)
+                                        , btn (txt "reject the connection") (AdminMsg RejectConnection)
                                         ]
 
                                 ConnectedToGroup Unconfirmed ->
                                     List
-                                        [ btn (txt "Portal admin may accept the connection") (AdminMsg AcceptConnection)
-                                        , btn (txt "Portal admin may reject the connection") (AdminMsg RejectConnection)
+                                        [ btn (txt "accept the connection") (AdminMsg AcceptConnection)
+                                        , btn (txt "reject the connection") (AdminMsg RejectConnection)
                                         ]
 
                                 ConnectedToPortal Confirmed ->
-                                    btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
+                                    btn (txt "undo the connection") (AdminMsg RejectConnection)
 
                                 ConnectedToGroup Confirmed ->
-                                    btn (txt "Portal admin may undo the connection") (AdminMsg RejectConnection)
+                                    btn (txt "undo the connection") (AdminMsg RejectConnection)
 
                                 NotConnected ->
                                     txt ""
@@ -625,14 +628,12 @@ view model =
                                         _ ->
                                             txt ""
                     in
-                    renders <|
-                        [ h "exposition in progress"
-                        , br
+                    ( renders <|
+                        [ br
                         , shareBlock
-                        , viewShare m.share
                         , secretLinkCheckbox
-                        , secretLinkState
                         , connectBlock
+                        , par [ p "The portal admin may" ]
                         , request
                         , br
                         , par [ p "Author may also choose to publish or submit the exposition" ]
@@ -647,8 +648,14 @@ view model =
                                 ]
                             ]
                         , br
-                        , txt "admin may control request"
+                        --, txt "admin may control request"
                         ]
+                    , renders <|
+                        [ h "exposition in progress"
+                        , viewShare m.share
+                        , secretLinkState
+                        ]
+                    )
 
                 InReview m ->
                     let
@@ -660,6 +667,8 @@ view model =
                                         , br
                                         , btn (txt "add a reviewer") (AdminMsg AssignReviewer)
                                         , btn (txt "put in revision") (AdminMsg PutInRevision)
+                                        , br
+                                        , par [ hyper "https://guide.researchcatalogue.net/#optional-revision-of-exposition-content" (Just "revision documentation") "admin help" ]
                                         ]
 
                                 Revision ->
@@ -670,7 +679,8 @@ view model =
 
                                 BeingReviewed ->
                                     block
-                                        [ txt "the exposition is now in review and can be seen by the reviewer"
+                                        [ par [ p "the exposition is now in review and can be seen by the reviewer" ]
+                                        , br
                                         , txt "the admin can:"
                                         , br
                                         , btn (txt "put the exposition in revision") (AdminMsg PutInRevision)
@@ -686,7 +696,8 @@ view model =
                                             ]
                                         ]
                     in
-                    renders <|
+                    ( render reviewActions
+                    , renders <|
                         [ h <|
                             case m.review of
                                 BeingReviewed ->
@@ -705,60 +716,64 @@ view model =
                                 _ ->
                                     txt "The exposition contents are locked"
                             ]
-                        , reviewActions
                         , br
                         ]
+                    )
 
                 Published m ->
                     case m.publication of
                         SelfPublished ->
-                            renders
+                            ( render <| btn (txt "reset all") Reset
+                            , renders
                                 [ h "The exposition is self-published"
                                 , txt "only SAR can undo this in case of emergencies"
                                 ]
+                            )
 
                         Archive ->
-                            renders <|
+                            ( render <|
+                                List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                            , renders <|
                                 [ h "the exposition has been archived"
                                 , List
                                     [ txt "Only the admin and the author can see it."
                                     , txt "The author has been informed."
                                     , txt "The exposition will no longer be editable, but it may be duplicated through versioning"
                                     ]
-                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
                                 ]
+                            )
 
                         Internal ->
-                            renders <|
+                            ( render <|
+                                List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                            , renders <|
                                 [ h "The exposition has been published internally in the portal."
                                 , txt "It can be seen by members of the portal"
                                 , txt "It will appear on the portal feed"
                                 , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
-                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
                                 ]
+                            )
 
                         External ->
-                            renders <|
+                            ( render <| List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
+                            , renders <|
                                 [ h "the exposition is now published it will appear on the front page"
                                 , List [ txt "The author has been informed. The exposition will no longer be editable, but it may be duplicated through versioning" ]
-                                , List [ btn (txt "unpublish the exposition, put it back \"in progress\"") (AdminMsg Unpublish) ]
                                 ]
+                            )
 
         bottom =
             viewHistory model.history
 
         showSide side =
             Html.div [ Attrs.class "column" ] [ side ]
-
-        middle = 
-            render (h "Status ")
     in
     Html.div []
         [ render <| btn (txt "reset all") Reset
         , Html.div [ Attrs.class "container" ]
-            ([ status, middle ] |> List.map showSide)
-        , Html.div [ Attrs.class "container" ] 
-            ([ bottom ])
+            ([ state, actions ] |> List.map showSide)
+        , Html.div [ Attrs.class "container" ]
+            [ bottom ]
         ]
 
 
@@ -768,7 +783,7 @@ viewHistory lst =
         content =
             lst |> List.reverse |> List.indexedMap (\index -> Tuple.first >> viewMsg index) |> List.reverse |> list
     in
-    [ h "log of actions: ", content ] |> renders
+    [ Escape (Html.hr [] []), h "log of actions: ", content ] |> renders
 
 
 viewMsg : Int -> Msg -> Elm
