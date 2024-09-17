@@ -16,5 +16,13 @@ same for publication level:
 
 archive ) limited ) unlimited
 
+## Comments
 
+- The author can now choose to change the visibility by sharing it:
+  - share in portal
+- Author may also choose to publish or submit the exposition
+  - submit to portal
+
+It might be confusing to be presented with these two possibilities in the same page.
+Maybe helpful to clearly state the difference between visibility and publication?
 
